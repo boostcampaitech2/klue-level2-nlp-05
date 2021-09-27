@@ -36,7 +36,7 @@ def parse_arguments(parser, verbose = False):
 
     # Set random seed
     parser.add_argument('--seed', type=int, default=None, help="random seed (default: None)")
-    parser.add_argument('-v', '--verbose', type=str, default="n", choices=["y", "n"], help="verbose (default: n)")
+    parser.add_argument('--verbose', type=str, default="n", choices=["y", "n"], help="verbose (default: n)")
 
     # Container environment
     parser.add_argument('--data_dir',  type=str, default=os.environ.get('SM_CHANNEL_TRAIN', './data'))
