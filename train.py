@@ -25,7 +25,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
-from transformers import BartModel, BartForConditionalGeneration
+from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from transformers import TrainingArguments
 
@@ -36,8 +36,9 @@ import wandb
 import requests
 
 ######################################
-### HELPER FUNCTIONS
+# HELPER FUNCTIONS
 ######################################
+
 
 def set_all_seeds(seed, verbose=False):
     torch.manual_seed(seed)
@@ -142,7 +143,7 @@ def increment_path(path, overwrite=False):
 
 
 ######################################
-### KLUE SPECIFICS
+# KLUE SPECIFICS
 ######################################
 
 
@@ -208,7 +209,7 @@ def label_to_num(label):
 
 
 ######################################
-### DATA LOADER RELATED
+# DATA LOADER RELATED
 ######################################
 
 # TODO: bucketed_batch_indicies 수정하기!
@@ -240,6 +241,8 @@ def bucketed_batch_indices(
     return batch_indices_list
 
 # TODO: collate_fn 현 데이터셋에 맞춰 수정하기!
+
+
 def collate_fn(
     batched_samples: List[Tuple[List[int], List[int], List[int]]],
     pad_token_idx
@@ -280,18 +283,80 @@ def send_web_hooks(text, url):
     requests.post(url, json=payload)
 
 
+def get_model_and_tokenizer(args, **kwargs):
+    # Here, you also need to define tokenizer as well
+    # since the type of tokenizer depends on the model
+
+    model = None
+    tokenizer = None
+
+    if args.model == "KE-T5":
+        model_name = args.load_model if args.load_model else 'KETI-AIR/ke-t5-base'
+        model = T5ForConditionalGeneration.from_pretrained(model_name)
+
+    else:
+        # If the model is not specified above,
+        # it first tries to look up for "model/{args.model}.py" and "model/models.py" file.
+        # Additional setting should be provided with kwargs above.
+
+        # If still not found, it tries to find the model in huggingface
+        # with AutoModelForSequenceClassification & AutoTokenizer
+
+        try:
+            model_module = getattr(import_module(
+                "model."+args.model), args.model)
+            model = model_module(kwargs)
+            tokenizer = model.tokenizer
+
+        except ModuleNotFoundError:
+
+            try:
+                model_module = getattr(
+                    import_module("model.models"), args.model)
+                model = model_module(kwargs)
+                tokenizer = model.tokenizer
+
+            except ModuleNotFoundError:
+                MODEL_NAME = args.model
+
+                model_config = AutoConfig.from_pretrained(MODEL_NAME)
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    MODEL_NAME, config=model_config)
+                tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
+            except AttributeError:
+                print("Tokenizer is not implemented in the model")
+
+        except AttributeError:
+            print("Tokenizer is not implemented in the model")
+
+    return model, tokenizer
+
+
 def train(args, verbose=False):
+    # Create folder
     save_dir = increment_path(os.path.join(args.model_dir, args.name))
     if verbose:
         print("save_dir:", save_dir)
 
+    # Device setting
     use_cuda = torch.cuda.is_available()
     device = torch.device('cuda:0' if use_cuda else 'cpu')
     if verbose:
         print('training on:', device)
 
+    # Load Model & Tokenizer
+    # because the type of tokenizer depends on the model
+    model, tokenizer = get_model_and_tokenizer(args)
+    model.to(device)
+
+    # Build Preprocessor
+    # regex, whatever...
+
+    # Build Augmentation
+    # unk, RE, ... 
+
     # Build Dataset
-    dataset_module = None
     try:
         dataset_module = getattr(import_module(
             "dataset."+args.dataset), args.dataset)
@@ -299,67 +364,32 @@ def train(args, verbose=False):
         dataset_module = getattr(import_module(
             "dataset.dataset"), args.dataset)
 
-    MAX_SEQ_LEN = 2048
+    MAX_SEQ_LEN = args.max_seq_len
 
     dataset = dataset_module(
         data_dir=args.data_dir,
         max_seq_len=MAX_SEQ_LEN,
         dropna=True)
 
-    # Augmentation must be implemented in dataset!
-    # not in train.py
+    dataset.set_preprocessor()
+    dataset.set_tokenizer(tokenizer)
 
-    # DataLoader
-    # TODO: train-valid split or building seperate valid data
-    # TODO: not spliting dataset (when args.val_ratio == 0)
-    # train_ds, valid_ds = dataset.split_dataset(args.val_ratio)
+    # Build Augmentation
 
+    # TODO: train-valid split
+    # TODO: do not split (= train with whole data) if val_ratio == 0.0
+
+    # Build DataLoader
     batch_size = args.batch_size
-    MAX_PAD_LEN = 10
+    MAX_PAD_LEN = args.max_pad_len
     NUM_WORKERS = 2
-    pin_memory = use_cuda
 
-    # TODO: change it according to dataloader
-    dataloader = DataLoader(dataset,
-                            collate_fn=lambda x: collate_fn(x, dataset.tokenizer.pad_token_id), 
-                            num_workers=NUM_WORKERS,
-                            pin_memory=pin_memory,
-                            batch_sampler=bucketed_batch_indices(dataset.data["len_text"],
-                                                                 dataset.data["len_summary"],
-                                                                 batch_size=batch_size,
-                                                                 max_pad_len=MAX_PAD_LEN))
-
-    # TODO: requires consensus on how to import model
-    # Model
-
-    # first looking for "model/{args.model}.py" and import {args.model} class
-    # if not found, try "model/models.py" and import {args.model} class
-    try:
-        model_module = getattr(import_module(
-            "model." + args.model), args.model)
-    except ModuleNotFoundError:
-        model_module = getattr(import_module("model.models"), args.model)
-
-    model = model_module().to(device)
-
-    # Load Saved Model
-    # if {args.load_model} is given, then load the saved model from {args.model_dir}
-    if args.load_model is not None:
-        saved_model = os.path.join(args.model_dir, args.load_model)
-        model.load_state_dict(torch.load(saved_model, map_location=device))
-        if verbose:
-            print("succesfully loaded saved model from", saved_model)
-
-    # BART
-    # model = None
-    # if args.load_model:
-    #     model = BartForConditionalGeneration.from_pretrained("./kobart_summary").to(device)
-    # else:
-    #     model = BartForConditionalGeneration.from_pretrained(get_pytorch_kobart_model()).to(device)
-
-    # T5
-    # model_name = 'KETI-AIR/ke-t5-base'
-    # model = T5ForConditionalGeneration.from_pretrained(model_name)
+    dataloader = torch.utils.data.dataloader.DataLoader(dataset,
+                                                        collate_fn=lambda x: collate_fn(x, dataset.tokenizer.pad_token_id), num_workers=NUM_WORKERS,
+                                                        batch_sampler=bucketed_batch_indices(dataset.data["len_text"],
+                                                                                             dataset.data["len_summary"],
+                                                                                             batch_size=batch_size,
+                                                                                             max_pad_len=MAX_PAD_LEN))
 
     # Optimizer
     # LayerNorm should not be decayed...
