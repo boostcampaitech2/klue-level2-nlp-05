@@ -521,7 +521,7 @@ def train(args, verbose=False):
     EVAL_EVERY = args.eval_every
     LOG_EVERY  = args.log_every
     DECAY_RATE = args.lr_weight_decay
-    WARMUPS    = args.lr_wramups
+    WARMUPS    = args.lr_warmups
 
     training_args = TrainingArguments(
         output_dir=SAVE_DIR,                        # output directory
