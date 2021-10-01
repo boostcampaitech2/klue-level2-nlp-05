@@ -462,7 +462,7 @@ def train(args, verbose=False):
 
     # Build DataLoader
     BATCH_SIZE = args.batch_size
-    VAL_BATCH_SIZE = args.val_batch_size
+    VAL_BATCH_SIZE = args.val_batch_size if args.val_batch_size else BATCH_SIZE
     MAX_PAD_LEN = args.max_pad_len
 
     # dataloader = torch.utils.data.dataloader.DataLoader(dataset,
