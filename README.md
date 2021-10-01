@@ -50,9 +50,39 @@ python train.py
 
 # Structure
 
+## File Structure
+
 ㅇㄱㄹㅇ팀 베이스라인 코드는 아래와 같은 구조로 되어 있습니다.
 
-## `dataset.preprocessor.preprocessors` 내의 `Preprocessor` class
+<details>
+  <summary>Click to expand!</summary>
+
+  ```
+.
+|-- README.md
+|-- dataset
+|   |-- augmentation
+|   |   `-- augmentations.py
+|   |-- dataset.py
+|   |-- preprocessor
+|   |   |-- preprocessors.py
+|   |   `-- regex.py
+|   `-- transform.py
+|-- exp.ipynb
+|-- infer.py
+|-- ipynb
+|-- model
+|   `-- models.py
+|-- requirements.txt
+`-- train.py
+  ```
+</details>
+
+## Class 설명
+
+### `dataset.preprocessor.preprocessors`:
+
+#### `Preprocessor` class
 
 * 기본적인 구현은 `pandas.DataFrame`을 받아서 원하는 대로 가공하는 역할을 수행합니다.
 
@@ -60,13 +90,15 @@ python train.py
 
 * 현재 추상 클래스 `Preprocessor`를 상속받는 클래스는 1개 `BaselinePreprocessor`가 구현되어 있습니다. 이는 베이스라인 코드가 하는 역할과 거의 유사합니다.
 
-### `dataset.preprocessor.preprocessors.BaselinePreprocessor`
+#### `BaselinePreprocessor` class
 
 * `BaselinePreprocessor`가 수행하는 역할은 넘겨받은 data의 라벨을 `subject_entity`, `object_entity`, `concat_entity`, `label`로 나누는 역할을 수행합니다. 
 
 * 이후, `concat_entity`는 `BaselineDataset`에서 `sentence`와 함께 모델의 입력값으로 주어지게 되며, 둘을 구분하기 위해 `token_type_ids`가 추가된 채로 모델에 주어집니다.
 
-## `dataset.augmentation.augmentations` 내의 `Augmentation` class: 
+----------
+
+### `dataset.augmentation.augmentations`:
 
 * 기본적인 구현은 개별 sentence `str`를 입력으로 받아 가공하는 것입니다.
 
@@ -76,7 +108,7 @@ python train.py
 
 * 현재 총 3개의 추상 클래스 `Augmentation`을 상속받은 클래스가 구현되어 있습니다.
 
-### `dataset.augmentation.augmentations.SimpleRandomUNK` class:
+#### `SimpleRandomUNK` class
 
 * `__init__(unk_token: str, unk_ratio: float = 0.15)`
 
@@ -84,11 +116,11 @@ python train.py
 
 * `unk_ratio`는 `<unk>` 토큰으로 처리할 단어의 비율을 정합니다. 전체 단어 수 (띄어쓰기 기준) 중에서 해당 비율만큼 (확률적으로) `<unk>` 토큰으로 대체됩니다.
 
-### `dataset.augmentation.augmentations.UNKWithInputMask` class:
+#### `UNKWithInputMask` class
 
 * 입력값으로 `input_mask`를 받아, `input_mask`의 `0`으로 주어진 곳의 단어에 대해서만 **모두** `<unk>` 토큰으로 대체합니다.
 
-### `dataset.augmentation.augmentations.RandomUNKWithInputMask` class:
+#### `RandomUNKWithInputMask` class
 
 * 위의 `SimpleRandomUnk`와 `UnkWithInputMask` 클래스의 기능을 모두 수행합니다. 입력값으로는 `input_mask`를 받습니다.
 

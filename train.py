@@ -13,7 +13,6 @@ from collections import defaultdict
 import pickle as pickle
 
 import numpy as np
-from numpy.lib.utils import _lookfor_generate_cache
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
