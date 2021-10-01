@@ -13,6 +13,7 @@ from collections import defaultdict
 import pickle as pickle
 
 import numpy as np
+from numpy.lib.utils import _lookfor_generate_cache
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -508,8 +509,10 @@ def train(args, verbose=False):
     # Train
     NUM_EPOCHS = args.epochs
     SAVE_EVERY = args.save_every
-    EVAL_EVERY = 1
+    SAVE_EVERY = 500
+    EVAL_EVERY = 500
     LOG_EVERY = args.log_every
+    LOG_EVERY = 500
 
     training_args = TrainingArguments(
         output_dir='./results',          # output directory
@@ -523,8 +526,8 @@ def train(args, verbose=False):
         weight_decay=0.01,               # strength of weight decay
         logging_dir='./logs',            # directory for storing logs
         logging_steps=LOG_EVERY,              # log saving step.
-        evaluation_strategy='epoch',  # evaluation strategy to adopt during training
-        save_strategy='epoch',
+        evaluation_strategy='steps',  # evaluation strategy to adopt during training
+        save_strategy='steps',
         # `no`: No evaluation during training.
         # `steps`: Evaluate every `eval_steps`.
         # `epoch`: Evaluate every end of epoch.
@@ -582,15 +585,6 @@ def main():
 
     if args.seed is not None:
         set_all_seeds(args.seed, verbose=v)
-
-    if args.wandb_use == "y":
-        wandb.init(project=args.wandb_project,
-                   config={"batch_size": args.batch_size,
-                           "lr": args.lr,
-                           "epochs": args.epochs,
-                           "backbone": args.model,
-                           "criterion_name": "CE",
-                           "save_name": args.wandb_name})
 
     train(args, verbose=v)
 

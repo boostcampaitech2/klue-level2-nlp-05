@@ -60,8 +60,8 @@ class BaselineDataset(Dataset):
             add_special_tokens=True,
         )
 
-        out = {key: value for key, value in tokenized_sentence.items()}
-        out['label'] = torch.tensor(self.data['label'])
+        out = {key: value[0] for key, value in tokenized_sentence.items()}
+        out['label'] = torch.tensor(self.data['label'][index])
 
         # dict of {'input_ids', 'token_type_ids', 'attention_mask', 'labels'}
         return out
