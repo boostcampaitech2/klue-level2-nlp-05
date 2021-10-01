@@ -5,8 +5,15 @@ import numpy as np
 
 
 class Augmentation:
+    
+    unk_token = ""
+
     @abstractmethod
-    def __call__(self, input: str) -> str:
+    def __init__(self, unk_token: str):
+        Augmentation.unk_token = unk_token
+
+    @abstractmethod
+    def __call__(self, input_text: str) -> str:
         pass
 
 
@@ -19,7 +26,7 @@ class SimpleRandomUNK(Augmentation):
         self.unk_ratio = unk_ratio
         self.unk_token = unk_token
 
-    def __call__(self, input: str) -> str:
+    def __call__(self, input_text: str) -> str:
         """Place `<UNK>` token at randomly selected words with the probability `unk_ratio`.
 
         Args:
@@ -28,7 +35,7 @@ class SimpleRandomUNK(Augmentation):
         Returns:
         * processed_string: str
         """
-        word_list = input.split()
+        word_list = input_text.split()
         mask = np.random.rand(len(word_list)) < self.unk_ratio
         new_list = [self.unk_token if m else word for word, m
                     in zip(word_list, mask)]
@@ -39,7 +46,7 @@ class SimpleRandomUNK(Augmentation):
 class RandomUNKWithInputMask(SimpleRandomUNK):
 
     def __call__(self,
-                 input: str,
+                 input_text: str,
                  input_mask: Optional[Union[List[int],
                                             List[bool], np.ndarray]] = None,
                  compensate: bool = True) -> str:
@@ -58,7 +65,7 @@ class RandomUNKWithInputMask(SimpleRandomUNK):
         * processed_string: str
         """
 
-        word_list = input.split()
+        word_list = input_text.split()
 
         if input_mask is not None:
             if len(input_mask) < len(word_list):
@@ -92,7 +99,7 @@ class UNKWithInputMask(Augmentation):
         self.unk_token = unk_token
 
     def __call__(self,
-                 input: str,
+                 input_text: str,
                  input_mask: Optional[Union[List[int], List[bool], np.ndarray]] = None) -> str:
         """Place `<UNK>` token at all input_mask positions. 
         Apply mask if a corresponding element is `False` or `0`.
@@ -104,8 +111,13 @@ class UNKWithInputMask(Augmentation):
         Returns:
         * processed_string: str
         """
-        word_list = input.split()
+        word_list = input_text.split()
+
         if input_mask is not None:
+            if len(input_mask) < len(word_list):
+                # dealing with inherent noise in text data
+                input_mask += [1] * (len(word_list) - len(input_mask))
+
             new_list = [self.unk_token if not m else word for word, m
                         in zip(word_list, input_mask)]
         else:

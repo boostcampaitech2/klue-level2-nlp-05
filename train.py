@@ -18,8 +18,7 @@ import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-import sklearn
-from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
+from sklearn import metrics
 
 import torch
 import torch.nn as nn
@@ -65,9 +64,11 @@ def parse_arguments(parser):
 
     # Container environment
     parser.add_argument('--data_dir',  type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', './data'))
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '/opt/ml/dataset'))
     parser.add_argument('--model_dir', type=str,
                         default=os.environ.get('SM_MODEL_DIR', './saved'))
+    parser.add_argument('--log_dir', type=str,
+                        default=os.environ.get('SM_MODEL_DIR', './logs'))
     parser.add_argument('--name', type=str, default="exp",
                         help='name of the custom model and experiment')
     parser.add_argument('--load_model', type=str,
@@ -105,13 +106,15 @@ def parse_arguments(parser):
     parser.add_argument('--lr', type=float, default=1e-5,
                         help="learning rate (default: 1e-5)")
     parser.add_argument('--max_seq_len', type=int, metavar='L',
-                        default=512, help="max sequence length (default 512)")
+                        default=256, help="max sequence length (default 256)")
     parser.add_argument('--max_pad_len', type=int, metavar='L',
                         default=8, help="max padding length for bucketing (default 8)")
     parser.add_argument('--log_every', type=int, metavar='N',
-                        default=1, help="log every N epochs")
+                        default=500, help="log every N steps (default: 500)")
+    parser.add_argument('--eval_every', type=int, metavar='N',
+                        default=500, help="evaluation interval for every N steps (default: 500)")
     parser.add_argument('--save_every', type=int, metavar='N',
-                        default=1, help="save model interval for every N epochs")
+                        default=500, help="save model interval for every N steps (default: 500)")
 
     # Learning Rate Scheduler
     group_lr = parser.add_argument_group('lr_scheduler')
@@ -121,6 +124,10 @@ def parse_arguments(parser):
                           default=0.9, help="lr scheduler gamma (default: 0.9)")
     group_lr.add_argument("--lr_decay_step", type=int, metavar='STEP',
                           default=10, help="lr scheduler decay step (default: 10)")
+    group_lr.add_argument("--lr_weight_decay", type=float, metavar='LAMBDA',
+                          default=0.01, help="weight decay rate for AdamW (default: 0.01)")
+    group_lr.add_argument("--lr_warmups", type=int, metavar='N',
+                          default=500, help="lr scheduler warmup steps (default: 500)")
 
     # WanDB setup
     group_wandb = parser.add_argument_group('wandb')
@@ -183,7 +190,7 @@ def klue_re_micro_f1(preds, labels):
     no_relation_label_idx = label_list.index("no_relation")
     label_indices = list(range(len(label_list)))
     label_indices.remove(no_relation_label_idx)
-    return sklearn.metrics.f1_score(labels, preds, average="micro", labels=label_indices) * 100.0
+    return metrics.f1_score(labels, preds, average="micro", labels=label_indices) * 100.0
 
 
 def klue_re_auprc(probs, labels):
@@ -194,9 +201,9 @@ def klue_re_auprc(probs, labels):
     for c in range(30):
         targets_c = labels.take([c], axis=1).ravel()
         preds_c = probs.take([c], axis=1).ravel()
-        precision, recall, _ = sklearn.metrics.precision_recall_curve(
+        precision, recall, _ = metrics.precision_recall_curve(
             targets_c, preds_c)
-        score[c] = sklearn.metrics.auc(recall, precision)
+        score[c] = metrics.auc(recall, precision)
     return np.average(score) * 100.0
 
 
@@ -209,7 +216,7 @@ def compute_metrics(pred):
     # calculate accuracy using sklearn's function
     f1 = klue_re_micro_f1(preds, labels)
     auprc = klue_re_auprc(probs, labels)
-    acc = accuracy_score(labels, preds)  # 리더보드 평가에는 포함되지 않습니다.
+    acc = metrics.accuracy_score(labels, preds)  # 리더보드 평가에는 포함되지 않습니다.
 
     return {
         'micro f1 score': f1,
@@ -371,9 +378,11 @@ def get_model_and_tokenizer(args, **kwargs):
 
 def train(args, verbose=False):
     # Create folder
-    save_dir = increment_path(os.path.join(args.model_dir, args.name))
+    SAVE_DIR = increment_path(os.path.join(args.model_dir, args.name))
+    LOG_DIR  = increment_path(os.path.join(args.log_dir, args.name))
     if verbose:
-        print("save_dir:", save_dir)
+        print("save_dir:", SAVE_DIR)
+        print("log_dir: ", LOG_DIR)
 
     # Device setting
     use_cuda = torch.cuda.is_available()
@@ -397,7 +406,7 @@ def train(args, verbose=False):
             "dataset.dataset"), args.dataset)
 
     MAX_SEQ_LEN = args.max_seq_len
-    NUM_LABELS = args.num_labels
+    NUM_LABELS  = args.num_labels
     # max_length sometimes refers to maximum length in text generation
     # so, I used MAX_SEQ_LEN to indicate maximum input length fed to the model
 
@@ -452,9 +461,9 @@ def train(args, verbose=False):
     # TODO: do not split (= train with whole data) if val_ratio == 0.0
 
     # Build DataLoader
-    BATCH_SIZE  = args.batch_size
+    BATCH_SIZE = args.batch_size
+    VAL_BATCH_SIZE = args.val_batch_size
     MAX_PAD_LEN = args.max_pad_len
-    NUM_WORKERS = 2
 
     # dataloader = torch.utils.data.dataloader.DataLoader(dataset,
     #                                                     collate_fn=lambda x: collate_fn(
@@ -509,42 +518,42 @@ def train(args, verbose=False):
     # Train
     NUM_EPOCHS = args.epochs
     SAVE_EVERY = args.save_every
-    SAVE_EVERY = 500
-    EVAL_EVERY = 500
-    LOG_EVERY = args.log_every
-    LOG_EVERY = 500
+    EVAL_EVERY = args.eval_every
+    LOG_EVERY  = args.log_every
+    DECAY_RATE = args.lr_weight_decay
+    WARMUPS    = args.lr_wramups
 
     training_args = TrainingArguments(
-        output_dir='./results',          # output directory
-        save_total_limit=5,              # number of total save model.
-        save_steps=SAVE_EVERY,                   # model saving step.
-        num_train_epochs=NUM_EPOCHS,              # total number of training epochs
-        learning_rate=LEARNING_RATE,               # learning_rate
-        per_device_train_batch_size=BATCH_SIZE,  # batch size per device during training
-        per_device_eval_batch_size=BATCH_SIZE,   # batch size for evaluation
-        warmup_steps=500,                # number of warmup steps for learning rate scheduler
-        weight_decay=0.01,               # strength of weight decay
-        logging_dir='./logs',            # directory for storing logs
-        logging_steps=LOG_EVERY,              # log saving step.
-        evaluation_strategy='steps',  # evaluation strategy to adopt during training
+        output_dir=SAVE_DIR,                        # output directory
+        save_total_limit=5,                         # number of total save model.
+        save_steps=SAVE_EVERY,                      # model saving step.
+        num_train_epochs=NUM_EPOCHS,                # total number of training epochs
+        learning_rate=LEARNING_RATE,                # learning_rate
+        per_device_train_batch_size=BATCH_SIZE,     # batch size per device during training
+        per_device_eval_batch_size=VAL_BATCH_SIZE,  # batch size for evaluation
+        warmup_steps=WARMUPS,                       # number of warmup steps for learning rate scheduler
+        weight_decay=DECAY_RATE,                    # strength of weight decay
+        logging_dir=LOG_DIR,                        # directory for storing logs
+        logging_steps=LOG_EVERY,                    # log saving step.
+        eval_steps=EVAL_EVERY,                      # evaluation step.
+        evaluation_strategy='steps',                # evaluation strategy to adopt during training
         save_strategy='steps',
-        # `no`: No evaluation during training.
+        # `no`   : No evaluation during training.
         # `steps`: Evaluate every `eval_steps`.
         # `epoch`: Evaluate every end of epoch.
-        eval_steps=EVAL_EVERY,            # evaluation step.
         load_best_model_at_end=True
     )
     trainer = Trainer(
         model=model,
         args=training_args,                  # training arguments, defined above
-        train_dataset=dataset,         # training dataset
-        eval_dataset=dataset,             # evaluation dataset
-        compute_metrics=compute_metrics         # define metrics function
+        train_dataset=dataset,               # training dataset
+        eval_dataset=dataset,                # evaluation dataset
+        compute_metrics=compute_metrics      # define metrics function
     )
 
     # train model
     trainer.train()
-    model.save_pretrained(os.path.join(save_dir, "finetuned_" + args.name))
+    model.save_pretrained(os.path.join(SAVE_DIR, args.name + "_final"))
 
     # for epoch in range(NUM_EPOCHS):
 
