@@ -61,7 +61,7 @@ class BaselineDataset(Dataset):
         )
 
         out = {key: value[0] for key, value in tokenized_sentence.items()}
-        out['label'] = torch.tensor(self.data['label'][index])
+        out['label'] = torch.tensor(self.data['label'].iloc[index])
 
         # dict of {'input_ids', 'token_type_ids', 'attention_mask', 'labels'}
         return out
