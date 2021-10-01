@@ -42,15 +42,11 @@ python train.py
 
 ## TODO List
 
-[ ] 다양한 모델(T5 등)의 input에 적합한 `Preprocessor` 클래스 개발
-
-[ ] EDA 논문에 나온 Augmentation 구현
-
-[ ] Word2Vec 혹은 FastText 기반의 유의어 사전 구축 및 Augmentation 구현
-
-[ ] train-valid split 구현 (stratified)
-
-[ ] huggingface `Trainer`에 다양한 optimizer 옵션 추가 (예를 들어, `--optim` 옵션은 정상으로 작동하지 않습니다.)
+- [ ] 다양한 모델(T5 등)의 input에 적합한 `Preprocessor` 클래스 개발
+- [ ] EDA 논문에 나온 Augmentation 구현
+- [ ] Word2Vec 혹은 FastText 기반의 유의어 사전 구축 및 Augmentation 구현
+- [ ] train-valid split 구현 (stratified)
+- [ ] huggingface `Trainer`에 다양한 optimizer 옵션 추가 (예를 들어, `--optim` 옵션은 정상으로 작동하지 않습니다.)
 
 # Structure
 
