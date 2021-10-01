@@ -8,7 +8,7 @@ import multiprocessing
 import argparse
 from importlib import import_module
 from pathlib import Path
-from typing import List, Tuple
+from typing import Union, List, Tuple
 from collections import defaultdict
 import pickle as pickle
 
@@ -26,8 +26,9 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
 from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification
+from transformers import Trainer, TrainingArguments
+
 from transformers import T5Tokenizer, T5ForConditionalGeneration
-from transformers import TrainingArguments
 
 from transformers.optimization import AdamW
 
@@ -66,13 +67,14 @@ def parse_arguments(parser):
                         default=os.environ.get('SM_CHANNEL_TRAIN', './data'))
     parser.add_argument('--model_dir', type=str,
                         default=os.environ.get('SM_MODEL_DIR', './saved'))
-    parser.add_argument('--name', type=str, default="exp")
+    parser.add_argument('--name', type=str, default="exp",
+                        help='name of the custom model and experiment')
     parser.add_argument('--load_model', type=str,
                         help="Load pretrained model if not None")
 
     # Load Dataset and construct DataLoader
-    parser.add_argument('--dataset', type=str, default='BaseDataset',
-                        help="name of dataset (default: BaseDatset)")
+    parser.add_argument('--dataset', type=str, default='BaselineDataset',
+                        help="name of dataset (default: BaselineDataset)")
     parser.add_argument('--batch_size', metavar='B', type=int,
                         default=1, help="train set batch size (default: 1)")
     parser.add_argument('--val_ratio', type=float, default=0.0,
@@ -80,21 +82,35 @@ def parse_arguments(parser):
     parser.add_argument('--val_batch_size', metavar='B', type=int,
                         help="valid set batch size (default set to batch_size)")
 
+    # Preprocessor and Data Augmentation
+    parser.add_argument('--preprocessor', type=str, default='BaselinePreprocessor',
+                        help="type of preprocessor (default: BaselinePreprocessor)")
+    parser.add_argument('--augmentation', type=str,
+                        help="type of augmentation (default: None)")
+
     # Load model and set optimizer
     parser.add_argument('--model', type=str, default='BaseModel',
                         help="model name (default: BaseModel)")
-    parser.add_argument('--optim', type=str, default='SGD',
-                        help="optimizer name (default: SGD)")
+    parser.add_argument('--num_labels', type=int, default=30,
+                        help="number of labels for classification (default: 30)")
+    parser.add_argument('--optim', type=str, default='AdamW',
+                        help="optimizer name (default: AdamW)")
     parser.add_argument('--momentum', type=float, default=0.,
                         help="SGD with momentum (default: 0.0)")
 
     # training setup
     parser.add_argument('--epochs', type=int, metavar='N',
                         default=1, help="number of epochs (default 1)")
-    parser.add_argument('--lr', type=float, default=1e-3,
-                        help="learning rate (default: 1e-3)")
+    parser.add_argument('--lr', type=float, default=1e-5,
+                        help="learning rate (default: 1e-5)")
+    parser.add_argument('--max_seq_len', type=int, metavar='L',
+                        default=512, help="max sequence length (default 512)")
+    parser.add_argument('--max_pad_len', type=int, metavar='L',
+                        default=8, help="max padding length for bucketing (default 8)")
     parser.add_argument('--log_every', type=int, metavar='N',
                         default=1, help="log every N epochs")
+    parser.add_argument('--save_every', type=int, metavar='N',
+                        default=1, help="save model interval for every N epochs")
 
     # Learning Rate Scheduler
     group_lr = parser.add_argument_group('lr_scheduler')
@@ -122,6 +138,9 @@ def increment_path(path, overwrite=False):
     Args:
         path (str or pathlib.Path): f"{model_dir}/{args.name}".
         overwrite (bool): whether to overwrite or increment path (increment if False).
+
+    Returns:
+        path: new path
     """
     path = Path(path)
 
@@ -214,23 +233,19 @@ def label_to_num(label):
 
 # TODO: bucketed_batch_indicies 수정하기!
 def bucketed_batch_indices(
-    src_lens: pd.Series,
-    tgt_lens: pd.Series,
+    src_lens: Union[List[int], np.ndarray, pd.Series],
     batch_size: int,
     max_pad_len: int
 ) -> List[List[int]]:
-    assert len(src_lens) == len(tgt_lens)
 
     batch_map = defaultdict(list)
     batch_indices_list = []
 
-    src_len_min = pd.Series.min(src_lens)
-    tgt_len_min = pd.Series.min(tgt_lens)
+    src_len_min = np.min(src_lens)
 
-    for idx, (src_len, tgt_len) in enumerate(zip(src_lens, tgt_lens)):
+    for idx, src_len in enumerate(src_lens):
         src = (src_len - src_len_min + 1) // max_pad_len
-        tgt = (tgt_len - tgt_len_min + 1) // max_pad_len
-        batch_map[(src, tgt)].append(idx)
+        batch_map[src].append(idx)
 
     for _, value in batch_map.items():
         batch_indices_list += [value[i:i+batch_size]
@@ -241,6 +256,8 @@ def bucketed_batch_indices(
     return batch_indices_list
 
 # TODO: collate_fn 현 데이터셋에 맞춰 수정하기!
+# we don't need collate_fn
+# since huggingface automatically creates default collate function
 
 
 def collate_fn(
@@ -290,9 +307,25 @@ def get_model_and_tokenizer(args, **kwargs):
     model = None
     tokenizer = None
 
-    if args.model == "KE-T5":
-        model_name = args.load_model if args.load_model else 'KETI-AIR/ke-t5-base'
-        model = T5ForConditionalGeneration.from_pretrained(model_name)
+    if args.model == "klue/bert-base":
+        MODEL_NAME = "klue/bert-base"
+
+        if args.load_model:
+            model = AutoModelForSequenceClassification.from_pretrained(
+                args.load_model)
+            tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
+        else:
+            model_config = AutoConfig.from_pretrained(MODEL_NAME)
+            model_config.num_labels = 30
+            model = AutoModelForSequenceClassification.from_pretrained(
+                MODEL_NAME, config=model_config)
+            tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
+    elif args.model == "KE-T5":
+        MODEL_NAME = args.load_model if args.load_model else 'KETI-AIR/ke-t5-base'
+        model = T5ForConditionalGeneration.from_pretrained(MODEL_NAME)
+        tokenizer = AutoTokenizer(MODEL_NAME)
 
     else:
         # If the model is not specified above,
@@ -305,7 +338,7 @@ def get_model_and_tokenizer(args, **kwargs):
         try:
             model_module = getattr(import_module(
                 "model."+args.model), args.model)
-            model = model_module(kwargs)
+            model = model_module()
             tokenizer = model.tokenizer
 
         except ModuleNotFoundError:
@@ -313,22 +346,24 @@ def get_model_and_tokenizer(args, **kwargs):
             try:
                 model_module = getattr(
                     import_module("model.models"), args.model)
-                model = model_module(kwargs)
+                model = model_module()
                 tokenizer = model.tokenizer
 
             except ModuleNotFoundError:
                 MODEL_NAME = args.model
 
                 model_config = AutoConfig.from_pretrained(MODEL_NAME)
+                model_config.num_labels = 30
+
                 model = AutoModelForSequenceClassification.from_pretrained(
                     MODEL_NAME, config=model_config)
                 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
             except AttributeError:
-                print("Tokenizer is not implemented in the model")
+                print("Tokenizer does not exist in the model")
 
         except AttributeError:
-            print("Tokenizer is not implemented in the model")
+            print("Tokenizer does not exist in the model")
 
     return model, tokenizer
 
@@ -348,13 +383,9 @@ def train(args, verbose=False):
     # Load Model & Tokenizer
     # because the type of tokenizer depends on the model
     model, tokenizer = get_model_and_tokenizer(args)
+    if verbose:
+        print(model.config)
     model.to(device)
-
-    # Build Preprocessor
-    # regex, whatever...
-
-    # Build Augmentation
-    # unk, RE, ... 
 
     # Build Dataset
     try:
@@ -365,107 +396,189 @@ def train(args, verbose=False):
             "dataset.dataset"), args.dataset)
 
     MAX_SEQ_LEN = args.max_seq_len
+    NUM_LABELS = args.num_labels
+    # max_length sometimes refers to maximum length in text generation
+    # so, I used MAX_SEQ_LEN to indicate maximum input length fed to the model
 
     dataset = dataset_module(
         data_dir=args.data_dir,
-        max_seq_len=MAX_SEQ_LEN,
+        max_length=MAX_SEQ_LEN,
+        num_labels=NUM_LABELS,
         dropna=True)
+    # dataset must return
+    # dict of {'input_ids', 'token_type_ids', 'attention_mask', 'labels'}
+    # to work properly
 
-    dataset.set_preprocessor()
-    dataset.set_tokenizer(tokenizer)
+    # TODO: Build Preprocessor
+    # regex, text cleansing, whatever...
+    # this result will be fixed for entire training steps
+    preprocessor = None
+    if args.preprocessor:
+        try:
+            preprocessor_module = getattr(import_module(
+                "dataset.preprocessor."+args.preprocessor), args.preprocessor)
+        except:
+            preprocessor_module = getattr(import_module(
+                "dataset.preprocessor.preprocessors"), args.preprocessor)
+
+        preprocessor = preprocessor_module()
 
     # Build Augmentation
+    # unk, RE, RI, ...
+    # this result will be fixed for entire training steps
+    augmentation = None
+    if args.augmentation:
+        try:
+            augmentation_module = getattr(import_module(
+                "dataset.augmentation."+args.augmentation), args.augmentation)
+        except:
+            augmentation_module = getattr(import_module(
+                "dataset.augmentation.augmentations"), args.augmentation)
+
+        augmentation = augmentation_module()
+
+    # TODO: set_preprocessor and set_augmentation
+    if preprocessor is not None:
+        dataset.set_preprocessor(preprocessor)
+    if augmentation is not None:
+        dataset.set_augmentation(augmentation)
+    dataset.set_tokenizer(tokenizer)
+
+    # now runs preprocessing steps
+    dataset.preprocess()
 
     # TODO: train-valid split
     # TODO: do not split (= train with whole data) if val_ratio == 0.0
 
     # Build DataLoader
-    batch_size = args.batch_size
+    BATCH_SIZE  = args.batch_size
     MAX_PAD_LEN = args.max_pad_len
     NUM_WORKERS = 2
 
-    dataloader = torch.utils.data.dataloader.DataLoader(dataset,
-                                                        collate_fn=lambda x: collate_fn(x, dataset.tokenizer.pad_token_id), num_workers=NUM_WORKERS,
-                                                        batch_sampler=bucketed_batch_indices(dataset.data["len_text"],
-                                                                                             dataset.data["len_summary"],
-                                                                                             batch_size=batch_size,
-                                                                                             max_pad_len=MAX_PAD_LEN))
+    # dataloader = torch.utils.data.dataloader.DataLoader(dataset,
+    #                                                     collate_fn=lambda x: collate_fn(
+    #                                                         x, dataset.tokenizer.pad_token_id),
+    #                                                     num_workers=NUM_WORKERS,
+    #                                                     batch_sampler=bucketed_batch_indices(
+    #                                                         dataset.data["sentence"].str.len(
+    #                                                         ),
+    #                                                         batch_size=BATCH_SIZE,
+    #                                                         max_pad_len=MAX_PAD_LEN))
 
     # Optimizer
     # LayerNorm should not be decayed...
-    param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(
-            nd in n for nd in no_decay)], 'weight_decay': 0.01},
-        {'params': [p for n, p in param_optimizer if any(
-            nd in n for nd in no_decay)], 'weight_decay': 0.0}
-    ]
+    # param_optimizer = list(model.named_parameters())
+    # no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+    # optimizer_grouped_parameters = [
+    #     {'params': [p for n, p in param_optimizer if not any(
+    #         nd in n for nd in no_decay)], 'weight_decay': 0.01},
+    #     {'params': [p for n, p in param_optimizer if any(
+    #         nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    # ]
 
-    optimizer = None
-    if args.optim == "SGD":
-        if args.momentum > 0.0:
-            optimizer = optim.SGD(model.parameters(),
-                                  lr=args.lr,
-                                  momentum=args.momentum)
-        else:
-            optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
-    elif args.optim == "Adam":
-        optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    LEARNING_RATE = args.lr
+    # optimizer = None
+    # if args.optim == "SGD":
+    #     if args.momentum > 0.0:
+    #         optimizer = optim.SGD(model.parameters(),
+    #                               lr=args.lr,
+    #                               momentum=args.momentum)
+    #     else:
+    #         optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
-    elif args.optim == "AdamW":
-        optimizer = AdamW(optimizer_grouped_parameters,
-                          lr=args.lr, correct_bias=False)
+    # elif args.optim == "Adam":
+    #     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+
+    # elif args.optim == "AdamW":
+    #     optimizer = AdamW(optimizer_grouped_parameters,
+    #                       lr=args.lr, correct_bias=False)
 
     # TODO: LR Scheduler
-    scheduler = None
-    if args.lr_scheduler == "StepLR":
-        scheduler = optim.lr_scheduler.StepLR(optimizer,
-                                              args.lr_decay_step,
-                                              gamma=args.lr_gamma)
-    elif args.lr_scheduler == "ReduceLROnPlateau":
-        PATIENCE = 3
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                         patience=PATIENCE)
+    # scheduler = None
+    # if args.lr_scheduler == "StepLR":
+    #     scheduler = optim.lr_scheduler.StepLR(optimizer,
+    #                                           args.lr_decay_step,
+    #                                           gamma=args.lr_gamma)
+    # elif args.lr_scheduler == "ReduceLROnPlateau":
+    #     PATIENCE = 3
+    #     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+    #                                                      patience=PATIENCE)
 
     # Train
-    num_epochs = args.epochs
-    SAVE_EVERY = 1
+    NUM_EPOCHS = args.epochs
+    SAVE_EVERY = args.save_every
+    EVAL_EVERY = 1
+    LOG_EVERY = args.log_every
 
-    for epoch in range(num_epochs):
+    training_args = TrainingArguments(
+        output_dir='./results',          # output directory
+        save_total_limit=5,              # number of total save model.
+        save_steps=SAVE_EVERY,                   # model saving step.
+        num_train_epochs=NUM_EPOCHS,              # total number of training epochs
+        learning_rate=LEARNING_RATE,               # learning_rate
+        per_device_train_batch_size=BATCH_SIZE,  # batch size per device during training
+        per_device_eval_batch_size=BATCH_SIZE,   # batch size for evaluation
+        warmup_steps=500,                # number of warmup steps for learning rate scheduler
+        weight_decay=0.01,               # strength of weight decay
+        logging_dir='./logs',            # directory for storing logs
+        logging_steps=LOG_EVERY,              # log saving step.
+        evaluation_strategy='epoch',  # evaluation strategy to adopt during training
+        save_strategy='epoch',
+        # `no`: No evaluation during training.
+        # `steps`: Evaluate every `eval_steps`.
+        # `epoch`: Evaluate every end of epoch.
+        eval_steps=EVAL_EVERY,            # evaluation step.
+        load_best_model_at_end=True
+    )
+    trainer = Trainer(
+        model=model,
+        args=training_args,                  # training arguments, defined above
+        train_dataset=dataset,         # training dataset
+        eval_dataset=dataset,             # evaluation dataset
+        compute_metrics=compute_metrics         # define metrics function
+    )
 
-        if verbose:
-            print("="*10, "epoch", epoch, "="*10)
+    # train model
+    trainer.train()
+    model.save_pretrained(os.path.join(save_dir, "finetuned_" + args.name))
 
-        for sentences in tqdm(dataloader):
+    # for epoch in range(NUM_EPOCHS):
 
-            # TODO: input change...
-            src_ids = sentences['src_idx'].to(device)
-            src_attn = sentences['src_attn'].to(device)
-            tgt_ids = sentences['tgt_idx'].to(device)
+    #     if verbose:
+    #         print("="*10, "epoch", epoch, "="*10)
 
-            out = model(src_ids, src_attn, labels=tgt_ids)
+    #     # dict of {'input_ids', 'token_type_ids', 'attention_mask'} + label
+    #     for sentences, labels in tqdm(dataloader):
 
-            optimizer.zero_grad()
-            out.loss.backward()
-            optimizer.step()
+    #         # TODO: input change...
+    #         sentences = sentences.to(device)
+    #         labels    = labels.to(device)
 
-        if ((epoch+1) % SAVE_EVERY == 0) or (epoch+1 == num_epochs):
-            # torch.save(model, os.path.join(save_dir, args.name + str(epoch) + '.pkl'))
-            model.save_pretrained(os.path.join(
-                save_dir, "pretrained_" + args.name + str(epoch+1)))
+    #         out = model(sentences, labels=labels)
 
-    # Logging
-    with open(os.path.join(save_dir, 'config.json'), 'w', encoding='utf-8') as f:
-        json.dump(vars(args), f, ensure_ascii=False, indent=4)
+    #         optimizer.zero_grad()
+    #         out.loss.backward()
+    #         optimizer.step()
+
+    #     if ((epoch+1) % LOG_EVERY == 0):
+    #         print(out.loss.item())
+
+    #     if ((epoch+1) % SAVE_EVERY == 0) or (epoch+1 == NUM_EPOCHS):
+    #         # torch.save(model, os.path.join(save_dir, args.name + str(epoch) + '.pkl'))
+    #         model.save_pretrained(os.path.join(
+    #             save_dir, "finetuned_" + args.name + str(epoch+1)))
+
+    # # Logging
+    # with open(os.path.join(save_dir, 'config.json'), 'w', encoding='utf-8') as f:
+    #     json.dump(vars(args), f, ensure_ascii=False, indent=4)
 
 
 def main():
     v = True
     parser = argparse.ArgumentParser(
         description="Train the model with the arguments given")
-    args = parse_arguments(parser, verbose=v)
+    args = parse_arguments(parser)
 
     if args.seed is not None:
         set_all_seeds(args.seed, verbose=v)
@@ -484,3 +597,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+    # train with
+    # python train.py --verbose y --name exp1 --dataset BaselineDataset --preprocessor BaselinePreprocessor --epochs 1 --model klue/bert-base

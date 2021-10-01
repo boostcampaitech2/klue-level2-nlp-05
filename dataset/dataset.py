@@ -8,20 +8,20 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 
-from ..preprocessor.preprocessors import Preprocessor
-from ..augmentation.augmentations import Augmentation
+from .preprocessor.preprocessors import Preprocessor
+from .augmentation.augmentations import Augmentation
 
 
 class BaselineDataset(Dataset):
-    train_file_name = "train.csv"
-    valid_file_name = "valid.csv"
-    test_file_name  = "test_data.csv"
+    train_file_name = "train/train.csv"
+    valid_file_name = "train/valid.csv"
+    test_file_name  = "test/test_data.csv"
 
-    def __init__(self, data_dir, max_seq_len: int = 256, num_labels: int = 30):
+    def __init__(self, data_dir, max_length: int = 256, num_labels: int = 30, **kwargs):
         super(BaselineDataset, self).__init__()
 
         self.data_dir = data_dir
-        self.max_seq_len = max_seq_len
+        self.max_length = max_length
         self.num_labels = num_labels
 
         self.data = pd.read_csv(os.path.join(
@@ -43,21 +43,37 @@ class BaselineDataset(Dataset):
             sentence = self.augmentation(sentence)
             # augmentation processes directly on the string input
 
-        sentence_tokens = self.tokenizer.tokenize(sentence)
-        entity_tokens   = self.tokenizer.tokenize(concat_entity)
+        # # tokenizer.tokenize() -> List[str]
+        # sentence_tokens = self.tokenizer.tokenize(sentence)
+        # entity_tokens   = self.tokenizer.tokenize(concat_entity)
 
-        sentence_ids = self.tokenizer.convert_tokens_to_ids(sentence_tokens)
-        entity_ids = self.tokenizer.convert_tokens_to_ids(entity_tokens)
+        # sentence_ids = self.tokenizer.convert_tokens_to_ids(sentence_tokens)
+        # entity_ids   = self.tokenizer.convert_tokens_to_ids(entity_tokens)
 
-        return {'sentence_ids': sentence_ids,
-                'entity_ids': entity_ids
-                }
+        tokenized_sentence = self.tokenizer(
+            concat_entity,
+            sentence,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+            add_special_tokens=True,
+        )
+
+        out = {key: value for key, value in tokenized_sentence.items()}
+        out['label'] = torch.tensor(self.data['label'])
+
+        # dict of {'input_ids', 'token_type_ids', 'attention_mask', 'labels'}
+        return out
 
     def __len__(self):
         return len(self.data)
 
     def preprocess(self):
         self.data = self.preprocessor(self.data)
+
+    def save_preprocessed_data(self, save_file_name = "preprocessed_data.csv"):
+        self.data.to_csv(os.path.join(self.data_dir, save_file_name))
 
     def set_tokenizer(self, tokenizer):
         self.tokenizer = tokenizer
