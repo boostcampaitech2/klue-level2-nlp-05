@@ -2,9 +2,12 @@
 
 # Instruction
 
-## How to train
-
+## Before train
+```bash
 pip install -r requirements.txt
+```
+
+## How to train
 
 대회에서 주어진 베이스라인 코드를 바탕으로, 다양한 옵션을 이용해 실험할 수 있도록 구성하였습니다. 아래의 코드로 대회 초기에 주어진 baseline setting 그대로 돌릴 수 있습니다. 
 
