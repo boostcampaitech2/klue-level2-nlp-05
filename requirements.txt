@@ -2,7 +2,14 @@ numpy
 pandas
 matplotlib
 torch
-transformer
+transformers
 tqdm
 sklearn
+gin-config
+pytorch-crf
+sentencepiece
+rouge_score
+sacrebleu
+datasets==1.5.0
+kss
 wandb
