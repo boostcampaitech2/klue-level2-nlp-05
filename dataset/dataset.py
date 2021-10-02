@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
+from tqdm.std import TqdmDefaultWriteLock
 
 from .preprocessor.preprocessors import Preprocessor
 from .augmentation.augmentations import Augmentation
@@ -95,3 +96,39 @@ class BaselineDataset(Dataset):
     @staticmethod
     def set_test_file(file_name):
         BaselineDataset.test_file_name = file_name
+
+class T5Dataset(BaselineDataset):
+
+    def __getitem__(self, index):
+        if self.tokenizer is None:
+            raise AttributeError(
+                "please first set tokenizer with self.set_tokenizer() method")
+
+        sentence = self.data['sentence'].iloc[index]
+        label    = self.data['label'].iloc[index]
+
+        if self.augmentation is not None:
+            sentence = self.augmentation(sentence)
+            # augmentation processes directly on the string input
+
+        # # tokenizer.tokenize() -> List[str]
+        # sentence_tokens = self.tokenizer.tokenize(sentence)
+        # entity_tokens   = self.tokenizer.tokenize(concat_entity)
+
+        # sentence_ids = self.tokenizer.convert_tokens_to_ids(sentence_tokens)
+        # entity_ids   = self.tokenizer.convert_tokens_to_ids(entity_tokens)
+
+        tokenized_sentence = self.tokenizer(
+            sentence,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+            add_special_tokens=True,
+        )
+
+        out = {key: value[0] for key, value in tokenized_sentence.items()}
+        out['labels'] = torch.tensor(label)
+
+        # dict of {'input_ids', 'attention_mask', 'labels'}
+        return out
