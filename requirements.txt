@@ -2,7 +2,7 @@ numpy
 pandas
 matplotlib
 torch
-transformer
+transformers
 tqdm
 sklearn
 wandb
