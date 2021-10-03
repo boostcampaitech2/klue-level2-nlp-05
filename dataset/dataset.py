@@ -72,6 +72,8 @@ class BaselineDataset(Dataset):
 
     def preprocess(self):
         self.data = self.preprocessor(self.data)
+    
+    def get_special_token_num(self): return 0
 
     def save_preprocessed_data(self, save_file_name = "preprocessed_data.csv"):
         self.data.to_csv(os.path.join(self.data_dir, save_file_name))
@@ -134,6 +136,9 @@ class ExtendedDataset(BaselineDataset):
 
     def preprocess(self):
         self.data, self.special_tokens = self.preprocessor(self.data)
+    
+    def get_special_token_num(self):
+        return len(self.special_tokens)
 
 
 class T5Dataset(BaselineDataset):
