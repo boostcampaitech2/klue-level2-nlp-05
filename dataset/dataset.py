@@ -100,9 +100,8 @@ class BaselineDataset(Dataset):
         BaselineDataset.test_file_name = file_name
 
 
-class ExtendedDataset(BaselineDataset):
-
-    # init 안 하나 ??
+# class ExtendedDataset(BaselineDataset):
+class EntitySpecialTokenDataset(BaselineDataset):
 
     def __getitem__(self, index):
         if self.tokenizer is None:
@@ -130,7 +129,8 @@ class ExtendedDataset(BaselineDataset):
 
         out = {key: value[0] for key, value in tokenized_sentence.items()}
         out['label'] = torch.tensor(self.data['label'].iloc[index])
-
+        #out['entity_ids'] = [0,1,0,0,1,0]
+        #out['input_embeds'] = 
         # dict of {'input_ids', 'token_type_ids', 'attention_mask', 'labels'}
         return out
 

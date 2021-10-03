@@ -56,11 +56,9 @@ class BaselinePreprocessor(Preprocessor):
 
         return new_df
 
-
-
 class ExtendedPreprocessor(Preprocessor):
-
-    def new_preprocessing_dataset(self,dataset):
+    
+    def __call__(self,dataset):
         """subject_entity와 object_entity를 확장한 DataFrame으로 변경"""
         new_data = {
                 'id': [],
@@ -79,10 +77,9 @@ class ExtendedPreprocessor(Preprocessor):
                 'source': []
             }
 
-        for i, row in data.iterrows():
+        for i, row in dataset.iterrows():
             subject_dict = eval(row['subject_entity'])
             object_dict = eval(row['object_entity'])
-
             new_data['id'].append(row['id'])
             new_data['sentence'].append(row['sentence'])
             new_data['sentence_length'].append(len(row['sentence']))
@@ -94,14 +91,19 @@ class ExtendedPreprocessor(Preprocessor):
             new_data['object_entity_start_idx'].append(object_dict['start_idx'])
             new_data['object_entity_end_idx'].append(object_dict['end_idx'])
             new_data['object_entity_type'].append(object_dict['type'])
+            new_data['concat_entity'].append(subject_dict['word']+'[SEP]'+object_dict['word'])
             new_data['label'].append(row['label'])
             new_data['source'].append(row['source'])
 
+        new_data['label'] = label_to_num(new_data['label'])
         return pd.DataFrame(new_data)
+
+        
+class EntitySpecialTokenPreprocessor(ExtendedPreprocessor):
 
     def __call__(self, data: pd.DataFrame) -> pd.DataFrame:
         
-        dataset = self.new_preprocessing_dataset(data)
+        dataset = super(EntitySpecialTokenPreprocessor, self).__call__(data)
         
         entity_special_tokens = []
         entity_sentences = []
@@ -183,7 +185,7 @@ class ExtendedPreprocessor(Preprocessor):
                 row['object_entity_end_token']
             concat_entity.append(temp) 
 
-        dataset["concat_entity"].extend(concat_entity)
+        dataset["concat_entity"] = concat_entity
 
         return pd.DataFrame(dataset), entity_special_tokens
 
