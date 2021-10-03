@@ -97,6 +97,45 @@ class BaselineDataset(Dataset):
     def set_test_file(file_name):
         BaselineDataset.test_file_name = file_name
 
+
+class ExtendedDataset(BaselineDataset):
+
+    # init 안 하나 ??
+
+    def __getitem__(self, index):
+        if self.tokenizer is None:
+            raise AttributeError(
+                "please first set tokenizer with self.set_tokenizer() method")
+
+        sentence = self.data['sentence'].iloc[index]
+        concat_entity = self.data['concat_entity'].iloc[index]
+
+        if self.augmentation is not None:
+            sentence = self.augmentation(sentence)
+            
+        # add special tokens 
+        self.tokenizer.add_special_tokens({'additional_special_tokens': self.special_tokens})
+
+        tokenized_sentence = self.tokenizer(
+            concat_entity,
+            sentence,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+            add_special_tokens=True,
+        )
+
+        out = {key: value[0] for key, value in tokenized_sentence.items()}
+        out['label'] = torch.tensor(self.data['label'].iloc[index])
+
+        # dict of {'input_ids', 'token_type_ids', 'attention_mask', 'labels'}
+        return out
+
+    def preprocess(self):
+        self.data, self.special_tokens = self.preprocessor(self.data)
+
+
 class T5Dataset(BaselineDataset):
 
     def __getitem__(self, index):
