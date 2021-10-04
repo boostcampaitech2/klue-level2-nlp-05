@@ -187,8 +187,7 @@ class EntitySpecialTokenPreprocessor(ExtendedPreprocessor):
 
         dataset["concat_entity"] = concat_entity
 
-        return pd.DataFrame(dataset), entity_special_tokens
-
+        return dataset, entity_special_tokens
 
 class T5BasicPreprocessor(ExtendedPreprocessor):
 
