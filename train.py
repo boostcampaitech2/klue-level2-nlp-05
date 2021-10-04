@@ -329,10 +329,44 @@ def get_model_and_tokenizer(args, **kwargs):
                 MODEL_NAME, config=model_config)
             tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-    elif args.model == "KE-T5":
-        MODEL_NAME = args.load_model if args.load_model else 'KETI-AIR/ke-t5-base'
-        model = T5ForConditionalGeneration.from_pretrained(MODEL_NAME)
-        tokenizer = AutoTokenizer(MODEL_NAME)
+    elif args.model == "KE-T5-large":
+        MODEL_NAME = 'KETI-AIR/ke-t5-large'
+        LOAD_MODEL = args.load_model if args.load_model else MODEL_NAME
+
+        model_module = getattr(import_module(
+            "model.models"), "CustomT5EncoderForSequenceClassificationMean")
+        model = model_module(num_labels=30,
+                             embedding_dims=1024, 
+                             dropout_p=0.5, 
+                             model_name=MODEL_NAME,
+                             load_model=LOAD_MODEL)
+        tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
+
+    elif args.model == "KE-T5-base":
+        MODEL_NAME = 'KETI-AIR/ke-t5-base'
+        LOAD_MODEL = args.load_model if args.load_model else MODEL_NAME
+
+        model_module = getattr(import_module(
+            "model.models"), "CustomT5EncoderForSequenceClassificationMean")
+        model = model_module(num_labels=30,
+                             embedding_dims=768, 
+                             dropout_p=0.5, 
+                             model_name=MODEL_NAME,
+                             load_model=LOAD_MODEL)
+        tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
+
+    elif args.model == "KE-T5-small":
+        MODEL_NAME = 'KETI-AIR/ke-t5-small'
+        LOAD_MODEL = args.load_model if args.load_model else MODEL_NAME
+
+        model_module = getattr(import_module(
+            "model.models"), "CustomT5EncoderForSequenceClassificationMean")
+        model = model_module(num_labels=30,
+                             embedding_dims=512, 
+                             dropout_p=0.5, 
+                             model_name=MODEL_NAME,
+                             load_model=LOAD_MODEL)
+        tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
 
     else:
         # If the model is not specified above,
@@ -348,7 +382,7 @@ def get_model_and_tokenizer(args, **kwargs):
             model = model_module()
             tokenizer = model.tokenizer
 
-        except ModuleNotFoundError:
+        except:
 
             try:
                 model_module = getattr(
@@ -356,7 +390,7 @@ def get_model_and_tokenizer(args, **kwargs):
                 model = model_module()
                 tokenizer = model.tokenizer
 
-            except ModuleNotFoundError:
+            except:
                 MODEL_NAME = args.model
 
                 model_config = AutoConfig.from_pretrained(MODEL_NAME)
@@ -366,19 +400,13 @@ def get_model_and_tokenizer(args, **kwargs):
                     MODEL_NAME, config=model_config)
                 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-            except AttributeError:
-                print("Tokenizer does not exist in the model")
-
-        except AttributeError:
-            print("Tokenizer does not exist in the model")
-
     return model, tokenizer
 
 
 def train(args, verbose=False):
     # Create folder
     SAVE_DIR = increment_path(os.path.join(args.model_dir, args.name))
-    LOG_DIR  = increment_path(os.path.join(args.log_dir, args.name))
+    LOG_DIR = increment_path(os.path.join(args.log_dir, args.name))
     if verbose:
         print("save_dir:", SAVE_DIR)
         print("log_dir: ", LOG_DIR)
@@ -392,8 +420,6 @@ def train(args, verbose=False):
     # Load Model & Tokenizer
     # because the type of tokenizer depends on the model
     model, tokenizer = get_model_and_tokenizer(args)
-    if verbose:
-        print(model.config)
     model.to(device)
 
     # Build Dataset
@@ -405,7 +431,7 @@ def train(args, verbose=False):
             "dataset.dataset"), args.dataset)
 
     MAX_SEQ_LEN = args.max_seq_len
-    NUM_LABELS  = args.num_labels
+    NUM_LABELS = args.num_labels
     # max_length sometimes refers to maximum length in text generation
     # so, I used MAX_SEQ_LEN to indicate maximum input length fed to the model
 
@@ -458,7 +484,7 @@ def train(args, verbose=False):
     added_token_num = dataset.get_special_token_num()
     if added_token_num > 0:
         model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
-    
+
     # TODO: train-valid split
     # TODO: do not split (= train with whole data) if val_ratio == 0.0
 
@@ -487,7 +513,6 @@ def train(args, verbose=False):
     #     {'params': [p for n, p in param_optimizer if any(
     #         nd in n for nd in no_decay)], 'weight_decay': 0.0}
     # ]
-
 
     LEARNING_RATE = args.lr
     # optimizer = None
@@ -521,24 +546,28 @@ def train(args, verbose=False):
     NUM_EPOCHS = args.epochs
     SAVE_EVERY = args.save_every
     EVAL_EVERY = args.eval_every
-    LOG_EVERY  = args.log_every
+    LOG_EVERY = args.log_every
     DECAY_RATE = args.lr_weight_decay
-    WARMUPS    = args.lr_warmups
+    WARMUPS = args.lr_warmups
 
     training_args = TrainingArguments(
         output_dir=SAVE_DIR,                        # output directory
-        save_total_limit=5,                         # number of total save model.
+        # number of total save model.
+        save_total_limit=5,
         save_steps=SAVE_EVERY,                      # model saving step.
         num_train_epochs=NUM_EPOCHS,                # total number of training epochs
         learning_rate=LEARNING_RATE,                # learning_rate
-        per_device_train_batch_size=BATCH_SIZE,     # batch size per device during training
+        # batch size per device during training
+        per_device_train_batch_size=BATCH_SIZE,
         per_device_eval_batch_size=VAL_BATCH_SIZE,  # batch size for evaluation
-        warmup_steps=WARMUPS,                       # number of warmup steps for learning rate scheduler
+        # number of warmup steps for learning rate scheduler
+        warmup_steps=WARMUPS,
         weight_decay=DECAY_RATE,                    # strength of weight decay
         logging_dir=LOG_DIR,                        # directory for storing logs
         logging_steps=LOG_EVERY,                    # log saving step.
         eval_steps=EVAL_EVERY,                      # evaluation step.
-        evaluation_strategy='steps',                # evaluation strategy to adopt during training
+        # evaluation strategy to adopt during training
+        evaluation_strategy='steps',
         save_strategy='steps',
         # `no`   : No evaluation during training.
         # `steps`: Evaluate every `eval_steps`.

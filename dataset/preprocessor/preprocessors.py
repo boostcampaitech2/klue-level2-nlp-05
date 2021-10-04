@@ -229,6 +229,6 @@ class T5BasicPreprocessor(ExtendedPreprocessor):
                 print("New:", new_sentence)
 
         new_df['t5_inputs'] = t5_inputs
-        new_df['label'] = label_to_num(new_df['label'].tolist())
+        # new_df['label'] = label_to_num(new_df['label'].tolist())
 
         return new_df

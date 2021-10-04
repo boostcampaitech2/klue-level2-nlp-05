@@ -6,15 +6,41 @@
 
 대회에서 주어진 베이스라인 코드를 바탕으로, 다양한 옵션을 이용해 실험할 수 있도록 구성하였습니다. 아래의 코드로 대회 초기에 주어진 baseline setting 그대로 돌릴 수 있습니다. 
 
+### Baseline Model (klue/bert-base)
+
 ```bash
-python train.py --verbose y --name baseline --model klue/bert-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1
+python train.py --verbose y --name exp_baseline --model klue/bert-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
 ```
+
+### Electra
+
+```bash
+python train.py --verbose y --name exp_electra --model kykim/electra-kor-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
+```
+
+### T5
+
+```bash
+python train.py --verbose y --name exp_t5 --model KE-T5-large --dataset T5Dataset --data_dir /opt/ml/dataset --preprocessor T5BasicPreprocessor --epochs 1 --lr 1e-3
+```
+
+```bash
+python train.py --verbose y --name exp_t5 --model KE-T5-base --dataset T5Dataset --data_dir /opt/ml/dataset --preprocessor T5BasicPreprocessor --epochs 1 --lr 1e-3
+```
+
+```bash
+python train.py --verbose y --name exp_t5 --model KE-T5-small --dataset T5Dataset --data_dir /opt/ml/dataset --preprocessor T5BasicPreprocessor --epochs 1 --lr 1e-3
+```
+
+### Help
 
 자세한 commandline arguments에 대한 내용은 아래의 명령어로 확인이 가능합니다.
 
 ```bash
 python train.py --help
 ```
+
+### Final Submission
 
 대회에 최종으로 제출한 setting은 아래와 같습니다.
 
