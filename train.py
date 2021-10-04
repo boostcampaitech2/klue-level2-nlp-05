@@ -32,6 +32,7 @@ from transformers import T5Tokenizer, T5ForConditionalGeneration
 from transformers.optimization import AdamW
 
 from tqdm import tqdm
+from transformers.utils.dummy_pt_objects import ModalEmbeddings
 import wandb
 import requests
 
@@ -311,62 +312,87 @@ def get_model_and_tokenizer(args, **kwargs):
     # Here, you also need to define tokenizer as well
     # since the type of tokenizer depends on the model
 
+    NUM_LABELS = 30
     model = None
     tokenizer = None
 
-    if args.model == "klue/bert-base":
+    if args.model.lower().count("klue/bert-base"):
         MODEL_NAME = "klue/bert-base"
+        LOAD_MODEL = args.load_model if args.load_model else MODEL_NAME
 
         if args.load_model:
             model = AutoModelForSequenceClassification.from_pretrained(
                 args.load_model)
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(LOAD_MODEL)
+            except:
+                # in case, pretrained tokenizer doesn't exists
+                tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
+        else:
+            model_config = AutoConfig.from_pretrained(MODEL_NAME)
+            model_config.num_labels = NUM_LABELS
+            model = AutoModelForSequenceClassification.from_pretrained(
+                MODEL_NAME, config=model_config)
             tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
+    elif args.model.lower().count("ke-t5"):
+        MODEL_NAME = ""
+        EMBEDDING_DIMS = 0
+        DROPOUT_P = 0.5
+
+        if args.model.count("large"):
+            MODEL_NAME = 'KETI-AIR/ke-t5-large'
+            EMBEDDING_DIMS = 1024
+        elif args.model.count("small"):
+            MODEL_NAME = 'KETI-AIR/ke-t5-small'
+            EMBEDDING_DIMS = 512
+        else:
+            MODEL_NAME = 'KETI-AIR/ke-t5-base'
+            EMBEDDING_DIMS = 768
+        
+        LOAD_MODEL = args.load_model if args.load_model else MODEL_NAME
+
+        model_module = getattr(import_module(
+            "model.models"), "CustomT5EncoderForSequenceClassificationMean")
+        model = model_module(num_labels=NUM_LABELS,
+                             embedding_dims=EMBEDDING_DIMS, 
+                             dropout_p=DROPOUT_P, 
+                             model_name=MODEL_NAME,
+                             load_model=LOAD_MODEL)
+
+        try:
+            tokenizer = T5Tokenizer.from_pretrained(LOAD_MODEL)
+        except:
+            tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
+
+    elif args.model.lower().count("klue/roberta"):
+        MODEL_NAME = ""
+
+        if args.model.count("large"):
+            MODEL_NAME = "klue/roberta-large"
+        elif args.model.count("small"):
+            MODEL_NAME = "klue/roberta-small"
+        else:
+            MODEL_NAME = "klue/roberta-base"
+        
+        LOAD_MODEL = args.load_model if args.load_model else MODEL_NAME
+
+        if args.load_model:
+            model = AutoModelForSequenceClassification.from_pretrained(LOAD_MODEL)
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(LOAD_MODEL)
+            except:
+                # in case, pretrained tokenizer doesn't exists
+                tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME,
+                    model_input_names = ["input_ids", "attention_mask"])
         else:
             model_config = AutoConfig.from_pretrained(MODEL_NAME)
             model_config.num_labels = 30
             model = AutoModelForSequenceClassification.from_pretrained(
                 MODEL_NAME, config=model_config)
-            tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-
-    elif args.model == "KE-T5-large":
-        MODEL_NAME = 'KETI-AIR/ke-t5-large'
-        LOAD_MODEL = args.load_model if args.load_model else MODEL_NAME
-
-        model_module = getattr(import_module(
-            "model.models"), "CustomT5EncoderForSequenceClassificationMean")
-        model = model_module(num_labels=30,
-                             embedding_dims=1024, 
-                             dropout_p=0.5, 
-                             model_name=MODEL_NAME,
-                             load_model=LOAD_MODEL)
-        tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
-
-    elif args.model == "KE-T5-base":
-        MODEL_NAME = 'KETI-AIR/ke-t5-base'
-        LOAD_MODEL = args.load_model if args.load_model else MODEL_NAME
-
-        model_module = getattr(import_module(
-            "model.models"), "CustomT5EncoderForSequenceClassificationMean")
-        model = model_module(num_labels=30,
-                             embedding_dims=768, 
-                             dropout_p=0.5, 
-                             model_name=MODEL_NAME,
-                             load_model=LOAD_MODEL)
-        tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
-
-    elif args.model == "KE-T5-small":
-        MODEL_NAME = 'KETI-AIR/ke-t5-small'
-        LOAD_MODEL = args.load_model if args.load_model else MODEL_NAME
-
-        model_module = getattr(import_module(
-            "model.models"), "CustomT5EncoderForSequenceClassificationMean")
-        model = model_module(num_labels=30,
-                             embedding_dims=512, 
-                             dropout_p=0.5, 
-                             model_name=MODEL_NAME,
-                             load_model=LOAD_MODEL)
-        tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
+            tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME,
+                model_input_names = ["input_ids", "attention_mask"])
 
     else:
         # If the model is not specified above,

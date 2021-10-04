@@ -18,6 +18,20 @@ python train.py --verbose y --name exp_baseline --model klue/bert-base --dataset
 python train.py --verbose y --name exp_electra --model kykim/electra-kor-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
 ```
 
+### Roberta
+
+```bash
+python train.py --verbose y --name klue/roberta-large --model kykim/electra-kor-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
+```
+
+```bash
+python train.py --verbose y --name klue/roberta-base --model kykim/electra-kor-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
+```
+
+```bash
+python train.py --verbose y --name klue/roberta-small --model kykim/electra-kor-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
+```
+
 ### T5
 
 ```bash
