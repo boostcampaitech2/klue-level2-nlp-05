@@ -455,7 +455,10 @@ def train(args, verbose=False):
 
     # now runs preprocessing steps
     dataset.preprocess()
-
+    added_token_num = dataset.get_special_token_num()
+    if added_token_num > 0:
+        model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
+    
     # TODO: train-valid split
     # TODO: do not split (= train with whole data) if val_ratio == 0.0
 
