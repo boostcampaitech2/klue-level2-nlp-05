@@ -2,6 +2,21 @@
 
 # Instruction
 
+## Data Augmentation
+
+모델을 학습하기 전에, 데이터 수 증가를 위해 여러 Data Augmentation기법을 수행합니다.<br>
+Augmentation을 적용한 데이터셋들은 "/opt/ml/dataset" 하위로 생성됩니다.
+
+### AEDA
+```bash
+python aeda_augmentation.py
+```
+
+### Swap
+```bash
+python swap_augmentation.py
+```
+
 ## How to train
 
 대회에서 주어진 베이스라인 코드를 바탕으로, 다양한 옵션을 이용해 실험할 수 있도록 구성하였습니다. 아래의 코드로 대회 초기에 주어진 baseline setting 그대로 돌릴 수 있습니다. 
