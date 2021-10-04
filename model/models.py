@@ -96,7 +96,6 @@ class CustomT5EncoderForSequenceClassificationMean(nn.Module):
         )
 
         last_hidden_state = outputs[0]
-        print(last_hidden_state.shape)
 
         pooled_output = self.pooler(last_hidden_state, attention_mask)
         pooled_output = self.dropout(pooled_output)
