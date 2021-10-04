@@ -552,16 +552,13 @@ def train(args, verbose=False):
 
     training_args = TrainingArguments(
         output_dir=SAVE_DIR,                        # output directory
-        # number of total save model.
-        save_total_limit=5,
+        save_total_limit=5,                         # number of total save model.
         save_steps=SAVE_EVERY,                      # model saving step.
         num_train_epochs=NUM_EPOCHS,                # total number of training epochs
         learning_rate=LEARNING_RATE,                # learning_rate
-        # batch size per device during training
-        per_device_train_batch_size=BATCH_SIZE,
+        per_device_train_batch_size=BATCH_SIZE,     # batch size per device during training
         per_device_eval_batch_size=VAL_BATCH_SIZE,  # batch size for evaluation
-        # number of warmup steps for learning rate scheduler
-        warmup_steps=WARMUPS,
+        warmup_steps=WARMUPS,                       # number of warmup steps for learning rate scheduler
         weight_decay=DECAY_RATE,                    # strength of weight decay
         logging_dir=LOG_DIR,                        # directory for storing logs
         logging_steps=LOG_EVERY,                    # log saving step.
@@ -576,6 +573,7 @@ def train(args, verbose=False):
     )
     trainer = Trainer(
         model=model,
+        tokenizer=tokenizer,
         args=training_args,                  # training arguments, defined above
         train_dataset=dataset,               # training dataset
         eval_dataset=dataset,                # evaluation dataset
