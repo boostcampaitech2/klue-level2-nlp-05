@@ -6,6 +6,8 @@ P. Bojanowski*, E. Grave*, A. Joulin, T. Mikolov, Enriching Word Vectors with Su
 
 E. Grave*, P. Bojanowski*, P. Gupta, A. Joulin, T. Mikolov, Learning Word Vectors for 157 Languages
 
+The word vectors are distributed under the Creative Commons Attribution-Share-Alike License 3.0.
+
 ## Introduction
 
 fastText는 Facebook에서 공개한 efficient learning of word representation이자 pre-trained word vector representation입니다. 영어뿐만 아니라 157개 언어의 pre-trained representation을 제공합니다.
