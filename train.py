@@ -82,8 +82,8 @@ def parse_arguments(parser):
                         help="list of additional dataset file names")
     parser.add_argument('--batch_size', metavar='B', type=int,
                         default=1, help="train set batch size (default: 1)")
-    parser.add_argument('--val_ratio', type=float, default=0.0,
-                        help="valid set ratio (default: 0.0)")
+    parser.add_argument('--val_ratio', type=float, default=0.2,
+                        help="valid set ratio (default: 0.2)")
     parser.add_argument('--val_batch_size', metavar='B', type=int,
                         help="valid set batch size (default set to batch_size)")
 
@@ -131,13 +131,6 @@ def parse_arguments(parser):
                           default=0.01, help="weight decay rate for AdamW (default: 0.01)")
     group_lr.add_argument("--lr_warmups", type=int, metavar='N',
                           default=500, help="lr scheduler warmup steps (default: 500)")
-
-    # WanDB setup
-    group_wandb = parser.add_argument_group('wandb')
-    group_wandb.add_argument('--wandb_use', type=str, default="n",
-                             choices=["y", "n"], help="use wandb for logging (default: n)")
-    group_wandb.add_argument('--wandb_project', type=str,
-                             metavar='PROJECT', default="exp", help="wandb project name")
 
     args = parser.parse_args()
 

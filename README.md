@@ -1,5 +1,11 @@
 # KLUE LEVEL2 NLP Team 5 - ㅇㄱㄹㅇ
 
+# Updates
+
+* (17:53, Oct 5) 자동으로 validation dataset을 split합니다. `--val_ratio 0.2`가 default 값이며, `--val_ratio 0.0`으로 설정하면 전체 데이터를 이용해서 evaluation을 진행하게 됩니다.
+
+  * 따라서 실험 중에는 추가적인 설정을 하실 필요가 없지만, ai stages에 제출시에는 `--val_ratio 0.0 --eval_every 10000` 정도로 설정해주세요! (eval every 옵션을 줘야 훈련 시간이 단축됩니다.)
+
 # Instruction
 
 ## Data Augmentation
@@ -110,9 +116,9 @@ python train.py
 ## TODO List
 
 - [X] 다양한 모델(T5 등)의 input에 적합한 `Preprocessor` 클래스 개발
-- [ ] EDA 논문에 나온 Augmentation 구현
+- [X] EDA 논문에 나온 Augmentation 구현
 - [ ] Word2Vec 혹은 FastText 기반의 유의어 사전 구축 및 Augmentation 구현
-- [ ] train-valid split 구현 (stratified)
+- [X] train-valid split 구현 (stratified)
 - [ ] huggingface `Trainer`에 다양한 optimizer 옵션 추가 (예를 들어, `--optim` 옵션은 정상으로 작동하지 않습니다.)
 
 # Structure
@@ -201,23 +207,56 @@ python train.py
 
 # Arguments
 
-## Basic Setting
+## Container Environments
 
 ```bash
---data_dir {data_directory}   # default: /opt/ml/dataset/
---model_dir {model_directory} # default: /opt/ml/saved/
+--data_dir {data_directory}   # default: /opt/ml/dataset
+--model_dir {model_directory} # default: ./saved
+--log_dir {model_directory}   # default: ./logs
+```
 
---name {model_name}           # please set the model name
+## Model Setting
 
---dataset {dataset}           # dataset class name
---batch_size {batch_size}
+```bash
+--name {save_name}           # please set the model name
+--model {model_type}         # model type (e.g., klue/bert-base)
+--load_model {model_dir}     # if set, load a custom pretrained model
+--num_labels {num_labels}    # num_labels (default: 30)
+```
 
---model {model_class}         # model class name -> first try to look up model/{model}.py, 
-                              # then look up model/models.py
+## Dataset and DataLoader
 
---optim {optim_type}          # optimizer type
---epochs {num_epochs}         # num epochs to be trained
---lr {learning_rate}          # learning rate (typically means the max lr)
+```bash
+--dataset {dataset}            # dataset class name (default: BaselineDataset)
+--additional {file1 file2 ...} # list of additional dataset file names (will be concated)
+--batch_size {B}               # batch size (default: 1)
+--val_ratio {val_ratio}        # stratified train-valid split ratio (default: 0.2)
+                               # if val_ratio == 0, then evaluate with the whole training data
+--val_batch_size {batch_size}  # default set to batch_size
+```
+
+## Preprocessor and Augmentation
+
+```bash
+--preprocessor {prp_type}    # default: BaselinePreprocessor
+--augmentation {aug_type}    # default: None
+```
+
+## Training Setup
+
+```bash
+--epochs {N}         # number of epochs (default: 1)
+--lr {LEARNING_RATE} # learning rate (default: 1e-5)
+--max_seq_len {L}    # max sequence length (default: 256)
+--max_pad_len {L}    # max padding length (default: 8)
+```
+
+## Trainer Setup
+
+```bash
+--log_every {N}     # log every N steps (default: 500)
+--eval_every {N}    # evaluation interval for every N steps (default: 500)
+--save_every {N}    # save model interval for every N steps (default: 500)
 ```
 
 ## Additional Setting
@@ -225,25 +264,6 @@ python train.py
 If saved model directory is given to `--load_model`, then it will load the pretrained weights.
 
 ```bash
---seed {seed_value}              # default: 42
---verbose {y or n}               # y or n
-
---load_model {saved_model_path}  # if given, then the model will be loaded
-
---val_ratio {val_ratio}          # if 0.0 -> does not split
---val_batch_size {batch_size}    # default set to batch_size
-
---momentum {momentum}            # set momentum if momentum > 0.0
---log_every {log_every}          # loging & printing interval
-
---lr_type
---lr_gamma
---lr_decay_step
-```
-
-### WanDB Setting
-
-```bash
---wandb_use {y or n}            # y if use wandb
---wandb_project {project_name}  # project_name
+--seed {seed_value}  # default: None
+--verbose {y or n}   # y or n
 ```
