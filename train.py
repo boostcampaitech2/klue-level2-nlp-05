@@ -18,6 +18,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from sklearn import metrics
+from sklearn.model_selection import train_test_split
 
 import torch
 import torch.nn as nn
@@ -516,6 +517,13 @@ def train(args, verbose=False):
 
     # TODO: train-valid split
     # TODO: do not split (= train with whole data) if val_ratio == 0.0
+    if args.val_ratio > 0.0:
+        train_ids, valid_ids = train_test_split(list(range(len(dataset.data))), test_size=0.2, stratify=dataset.data['label'])
+        train_dataset = torch.utils.data.Subset(dataset, train_ids)
+        valid_dataset = torch.utils.data.Subset(dataset, valid_ids)
+        print("="*20)
+        print("train-valid split to train:", len(train_dataset), "valid:", len(valid_dataset))
+        print("="*20)
 
     # Build DataLoader
     BATCH_SIZE = args.batch_size
@@ -600,14 +608,26 @@ def train(args, verbose=False):
         # `epoch`: Evaluate every end of epoch.
         load_best_model_at_end=True
     )
-    trainer = Trainer(
-        model=model,
-        tokenizer=tokenizer,
-        args=training_args,                  # training arguments, defined above
-        train_dataset=dataset,               # training dataset
-        eval_dataset=dataset,                # evaluation dataset
-        compute_metrics=compute_metrics      # define metrics function
-    )
+
+    trainer = None
+    if args.val_ratio > 0.0:
+        trainer = Trainer(
+            model=model,
+            tokenizer=tokenizer,
+            args=training_args,                  # training arguments, defined above
+            train_dataset=train_dataset,               # training dataset
+            eval_dataset=valid_dataset,                # evaluation dataset
+            compute_metrics=compute_metrics      # define metrics function
+        )
+    else:
+        trainer = Trainer(
+            model=model,
+            tokenizer=tokenizer,
+            args=training_args,                  # training arguments, defined above
+            train_dataset=dataset,               # training dataset
+            eval_dataset=dataset,                # evaluation dataset
+            compute_metrics=compute_metrics      # define metrics function
+        )
 
     # train model
     trainer.train()
