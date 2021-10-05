@@ -122,13 +122,13 @@ def parse_arguments(parser):
     # Learning Rate Scheduler
     group_lr = parser.add_argument_group('lr_scheduler')
     group_lr.add_argument("--lr_type",  type=str, metavar='TYPE',
-                          default=None, help="lr scheduler type (default: None)")
-    group_lr.add_argument("--lr_gamma", type=float, metavar='GAMMA',
-                          default=0.9, help="lr scheduler gamma (default: 0.9)")
-    group_lr.add_argument("--lr_decay_step", type=int, metavar='STEP',
-                          default=10, help="lr scheduler decay step (default: 10)")
+                          default="linear", help="lr scheduler type (default: linear)")
     group_lr.add_argument("--lr_weight_decay", type=float, metavar='LAMBDA',
                           default=0.01, help="weight decay rate for AdamW (default: 0.01)")
+    group_lr.add_argument("--lr_gamma", type=float, metavar='GAMMA',
+                          default=0.95, help="lr scheduler gamma (default: 0.95)")
+    group_lr.add_argument("--lr_decay_step", type=int, metavar='STEP',
+                          default=100, help="lr scheduler decay step (default: 100)")
     group_lr.add_argument("--lr_warmups", type=int, metavar='N',
                           default=500, help="lr scheduler warmup steps (default: 500)")
 
@@ -347,15 +347,18 @@ def get_model_and_tokenizer(args, **kwargs):
             MODEL_NAME = 'KETI-AIR/ke-t5-base'
             EMBEDDING_DIMS = 768
         
-        LOAD_MODEL = args.load_model if args.load_model else MODEL_NAME
+        if args.load_model:
+            LOAD_MODEL = args.load_model
+            config = AutoConfig.from_pretrained(LOAD_MODEL)
+        else:
+            LOAD_MODEL = MODEL_NAME
+            config = AutoConfig.from_pretrained(LOAD_MODEL)
+            config.num_labels = 30
+            config.dropout_p = 0.5
 
         model_module = getattr(import_module(
             "model.models"), "CustomT5EncoderForSequenceClassificationMean")
-        model = model_module(num_labels=NUM_LABELS,
-                             embedding_dims=EMBEDDING_DIMS, 
-                             dropout_p=DROPOUT_P, 
-                             model_name=MODEL_NAME,
-                             load_model=LOAD_MODEL)
+        model = model_module(config)
 
         try:
             tokenizer = T5Tokenizer.from_pretrained(LOAD_MODEL)
@@ -493,7 +496,7 @@ def train(args, verbose=False):
             augmentation_module = getattr(import_module(
                 "dataset.augmentation.augmentations"), args.augmentation)
 
-        augmentation = augmentation_module()
+        augmentation = augmentation_module(tokenizer)
 
     # TODO: set_preprocessor and set_augmentation
     if preprocessor is not None:
@@ -577,29 +580,36 @@ def train(args, verbose=False):
     SAVE_EVERY = args.save_every
     EVAL_EVERY = args.eval_every
     LOG_EVERY = args.log_every
+
+    LR_TYPE = args.lr_type
     DECAY_RATE = args.lr_weight_decay
     WARMUPS = args.lr_warmups
 
     training_args = TrainingArguments(
         output_dir=SAVE_DIR,                        # output directory
+        logging_dir=LOG_DIR,                        # directory for storing logs
+
         save_total_limit=5,                         # number of total save model.
         save_steps=SAVE_EVERY,                      # model saving step.
-        num_train_epochs=NUM_EPOCHS,                # total number of training epochs
-        learning_rate=LEARNING_RATE,                # learning_rate
-        per_device_train_batch_size=BATCH_SIZE,     # batch size per device during training
-        per_device_eval_batch_size=VAL_BATCH_SIZE,  # batch size for evaluation
-        warmup_steps=WARMUPS,                       # number of warmup steps for learning rate scheduler
-        weight_decay=DECAY_RATE,                    # strength of weight decay
-        logging_dir=LOG_DIR,                        # directory for storing logs
         logging_steps=LOG_EVERY,                    # log saving step.
         eval_steps=EVAL_EVERY,                      # evaluation step.
-        # evaluation strategy to adopt during training
+        
+        num_train_epochs=NUM_EPOCHS,                # total number of training epochs
         evaluation_strategy='steps',
-        save_strategy='steps',
+        save_strategy='steps',                      # evaluation strategy to adopt during training
         # `no`   : No evaluation during training.
         # `steps`: Evaluate every `eval_steps`.
         # `epoch`: Evaluate every end of epoch.
-        load_best_model_at_end=True
+        load_best_model_at_end=True,
+        
+        per_device_train_batch_size=BATCH_SIZE,     # batch size per device during training
+        per_device_eval_batch_size=VAL_BATCH_SIZE,  # batch size for evaluation
+        
+        learning_rate=LEARNING_RATE,                # learning_rate
+        warmup_steps=WARMUPS,                       # number of warmup steps for learning rate scheduler
+        weight_decay=DECAY_RATE,                    # strength of weight decay
+        
+        
     )
 
     trainer = None

@@ -5,12 +5,11 @@ import numpy as np
 
 
 class Augmentation:
-    
-    unk_token = ""
 
     @abstractmethod
-    def __init__(self, unk_token: str):
-        Augmentation.unk_token = unk_token
+    def __init__(self, tokenizer):
+        self.unk_token = tokenizer.unk_token
+        pass
 
     @abstractmethod
     def __call__(self, input_text: str) -> str:
@@ -19,12 +18,10 @@ class Augmentation:
 
 class SimpleRandomUNK(Augmentation):
 
-    def __init__(self,
-                 unk_token: str,
-                 unk_ratio: float = 0.15):
+    def __init__(self, tokenizer, unk_ratio: float = 0.15):
 
         self.unk_ratio = unk_ratio
-        self.unk_token = unk_token
+        self.unk_token = tokenizer.unk_token
 
     def __call__(self, input_text: str) -> str:
         """Place `<UNK>` token at randomly selected words with the probability `unk_ratio`.
@@ -94,9 +91,8 @@ class RandomUNKWithInputMask(SimpleRandomUNK):
 
 class UNKWithInputMask(Augmentation):
 
-    def __init__(self,
-                 unk_token: str):
-        self.unk_token = unk_token
+    def __init__(self, tokenizer):
+        self.unk_token = tokenizer.unk_token
 
     def __call__(self,
                  input_text: str,
