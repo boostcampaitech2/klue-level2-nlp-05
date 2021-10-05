@@ -3,23 +3,39 @@ import random
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+import re
 
 random.seed(42)
 
 PUNCTUATIONS = ['.', ',', '!', '?', ';', ':']
-NUM_AUGS = [1, 2, 4, 8]
+# NUM_AUGS = [1, 2, 4, 8]
+NUM_AUGS = [1]
+
 PUNC_RATIO = 0.3
 
+# SHA1 HASH_VALUE
+HASH_VALUE_SUB = 'f10e2821bbbea527ea02200352313bc059445190'  # len: 40
+HASH_VALUE_OBJ = '7161a2409087e392cf68559ddac9f1b64b07510c'
 
-def insert_punctuation_marks(sentence, punc_ratio=PUNC_RATIO):
+# entity HSASH_VALUE로 바꾸기, [start_idx:end_idx+1]까지의 글자를 바꿈
+def encode_words(sentence:str, start_s, end_s, start_o, end_o) -> str:
+	# sentence[start_s:end_s+1] = HASH_VALUE_SUB
+	# sentence[start_o:end_o+1] = HASH_VALUE_OBJ
+
+	sentence.replace(sentence[start_s:end_s+1], HASH_VALUE_SUB)
+	sentence.replace(sentence[start_o:end_o+1], HASH_VALUE_OBJ)
+	
+	return sentence
+
+def insert_punctuation(sentence:str, punc_ratio=PUNC_RATIO):
 	'''
 	ratio만큼 PUNCTATIONS를 sentence에 랜덤으로 추가
 	'''
 	words = sentence.split(' ')
 	new_line = []
-	q = random.randint(1, int(punc_ratio * len(words) + 1))
-	qs = random.sample(range(0, len(words)), q)
-
+	q = random.randint(1, int(punc_ratio * len(words) + 1))    # 몇 개 뽑을지
+	qs = random.sample(range(0, len(words)), q)  # 그게 다 몇 번째 단어에 붙을건지 ..? 
+	
 	for j, word in enumerate(words):
 		if j in qs:
 			new_line.append(PUNCTUATIONS[random.randint(0, len(PUNCTUATIONS)-1)])
@@ -27,7 +43,50 @@ def insert_punctuation_marks(sentence, punc_ratio=PUNC_RATIO):
 		else:
 			new_line.append(word)
 	new_line = ' '.join(new_line)
+
 	return new_line
+
+
+def change_index(new_line, word_s, word_o, len_s, len_o, type_s, type_o):
+	sub_index = [] # start_i, end_i
+	obj_index = [] # start_i, end_i
+	sub_index.append(str(new_line.find(HASH_VALUE_SUB)))
+	sub_index.append(str(new_line.find(HASH_VALUE_SUB)+len_s-1))
+	new_line = new_line.replace(HASH_VALUE_SUB,word_s)
+	
+	obj_index.append(str(new_line.find(HASH_VALUE_OBJ)))
+	obj_index.append(str(new_line.find(HASH_VALUE_OBJ)+len_o-1))
+	new_line = new_line.replace(HASH_VALUE_OBJ,word_o)
+	
+	entity_sub = "{'word': "+word_s+"}, 'start_idx': "+sub_index[0]+", 'end_idx': "+sub_index[1]+", 'type': "+type_s+"}"
+	entity_obj = "{'word': "+word_o+"}, 'start_idx': "+obj_index[0]+", 'end_idx': "+obj_index[1]+", 'type': "+type_o+"}"
+
+	return new_line, entity_sub, entity_obj
+	
+
+def insert_punc_and_change_index(data_row, punc_ratio=PUNC_RATIO):
+	'''
+	'''
+	# parse word, idx, len, type
+	word_s, start_s, end_s, type_s = list(eval(data_row["subject_entity"]).values())
+	word_o, start_o, end_o, type_o = list(eval(data_row["object_entity"]).values())
+
+	len_s = len(word_s)
+	len_o = len(word_o)
+	
+	# input 원래 sentence -> output entity가 encode된 sentence
+	encoded_sentence = encode_words(data_row['sentence'], start_s, end_s, start_o, end_o)  # "가 나 다" -> "가 ~~ 다"
+	
+	new_sentence = insert_punctuation(encoded_sentence)  # "! 가 ~~ 다" -> 완성
+	
+	new_sentence, entity_sub, entity_obj = change_index(new_sentence, word_s, word_o, len_s, len_o, type_s, type_o)  # "! 가 나 다"
+	
+	data_row['sentence'] = new_sentence
+	data_row['subject_entity'] = entity_sub
+	data_row['object_entity'] = entity_obj
+
+	return data_row
+
 	
 def main(dataset:str):
 	'''
@@ -39,13 +98,13 @@ def main(dataset:str):
 		result_aug = orig_df.copy()
 		for _ in range(aug):
 			df_aug = orig_df.copy()
-			df_aug['sentence'] = orig_df["sentence"].map(insert_punctuation_marks)
+			df_aug = orig_df.apply(lambda x: insert_punc_and_change_index(x), axis=1)
 			result_aug = pd.concat([result_aug, df_aug], axis=0)
 			result_aug.reset_index(inplace=True,drop=True)
-
 		os.makedirs(f"/opt/ml/dataset/aeda_{aug}_dataset/", exist_ok=True)
 		os.makedirs(f"/opt/ml/dataset/aeda_{aug}_dataset/train", exist_ok=True)
 		result_aug.to_csv(f"/opt/ml/dataset/aeda_{aug}_dataset/train/train.csv", header=True, index=False)
+	
 
 
 if __name__ == "__main__":
