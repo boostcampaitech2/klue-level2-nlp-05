@@ -137,3 +137,5 @@ data/
 wandb/
 logs/
 results/
+*.bin
+*.bin.gz

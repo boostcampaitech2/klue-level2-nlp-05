@@ -77,6 +77,8 @@ def parse_arguments(parser):
     # Load Dataset and construct DataLoader
     parser.add_argument('--dataset', type=str, default='BaselineDataset',
                         help="name of dataset (default: BaselineDataset)")
+    parser.add_argument('--additional', type=str, nargs='*',
+                        help="list of additional dataset file names")
     parser.add_argument('--batch_size', metavar='B', type=int,
                         default=1, help="train set batch size (default: 1)")
     parser.add_argument('--val_ratio', type=float, default=0.0,
@@ -465,6 +467,7 @@ def train(args, verbose=False):
         data_dir=args.data_dir,
         max_length=MAX_SEQ_LEN,
         num_labels=NUM_LABELS,
+        additional=args.additional,
         dropna=True)
     # dataset must return
     # dict of {'input_ids', 'token_type_ids', 'attention_mask', 'labels'}
