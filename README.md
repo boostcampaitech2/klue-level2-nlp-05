@@ -1,10 +1,12 @@
 # KLUE LEVEL2 NLP Team 5 - ㅇㄱㄹㅇ
 
-# Updates
+## Updates
 
 * (17:53, Oct 5) 자동으로 validation dataset을 split합니다. `--val_ratio 0.2`가 default 값이며, `--val_ratio 0.0`으로 설정하면 전체 데이터를 이용해서 evaluation을 진행하게 됩니다.
 
   * 따라서 실험 중에는 추가적인 설정을 하실 필요가 없지만, ai stages에 제출시에는 `--val_ratio 0.0 --eval_every 10000` 정도로 설정해주세요! (eval every 옵션을 줘야 훈련 시간이 단축됩니다.)
+
+* (18:23, Oct 5) `--save_every 2000 --log_every 2000 --eval_every 2000` 정도로 설정해주셔도 충분히 evaluation 가능하니 훈련 속도 빠르게 하기 위해서는 이 방법 시도해보세요~
 
 # Instruction
 
