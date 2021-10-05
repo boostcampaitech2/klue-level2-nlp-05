@@ -8,14 +8,26 @@
 Augmentation을 적용한 데이터셋들은 "/opt/ml/dataset" 하위로 생성됩니다.
 
 ### AEDA
+
 ```bash
 python aeda_augmentation.py
 ```
 
 ### Swap
+
 ```bash
 python swap_augmentation.py
 ```
+
+### Load augmented data
+
+아래의 argument를 추가하면 사전에 augmentation이 이루어진 data를 받습니다. `--data_dir` 내의 하부 디렉토리에서 가져옵니다.
+
+```bash
+--additional folder1/train.csv folder2/train.csv
+```
+
+예를 들어, `--data_dir /opt/ml/dataset`으로 지정되어 있다면, `/opt/ml/dataset/folder1/train.csv`, `/opt/ml/dataset/folder2/train.csv`를 불러오게 됩니다.
 
 ## How to train
 
@@ -36,15 +48,15 @@ python train.py --verbose y --name exp_electra --model kykim/electra-kor-base --
 ### Roberta
 
 ```bash
-python train.py --verbose y --name klue/roberta-large --model kykim/electra-kor-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
+python train.py --verbose y --name exp_roberta --model klue/roberta-large --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
 ```
 
 ```bash
-python train.py --verbose y --name klue/roberta-base --model kykim/electra-kor-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
+python train.py --verbose y --name exp_roberta --model klue/roberta-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
 ```
 
 ```bash
-python train.py --verbose y --name klue/roberta-small --model kykim/electra-kor-base --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
+python train.py --verbose y --name exp_roberta --model klue/roberta-small --dataset BaselineDataset --data_dir /opt/ml/dataset --preprocessor BaselinePreprocessor --epochs 1 --lr 1e-3
 ```
 
 ### T5

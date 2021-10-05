@@ -28,6 +28,14 @@ class BaselineDataset(Dataset):
         self.data = pd.read_csv(os.path.join(
             self.data_dir, BaselineDataset.train_file_name), encoding='utf-8')
 
+        additionals = kwargs.get("additional", None)
+        if additionals is not None:
+            print(additionals)
+            additional_df = [self.data]
+            for file_name in additionals:
+                additional_df.append(pd.read_csv(os.path.join(self.data_dir, file_name), encoding='utf-8'))
+            self.data = pd.concat(additional_df)
+        
         self.tokenizer = None
         self.preprocessor = None
         self.augmentation = None
@@ -86,6 +94,9 @@ class BaselineDataset(Dataset):
 
     def set_augmentation(self, augmentation: Augmentation):
         self.augmentation = augmentation
+
+    def save_data(self, save_file: str):\
+        self.data.to_csv(save_file)
 
     @staticmethod
     def set_train_file(file_name):

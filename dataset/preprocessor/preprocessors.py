@@ -1,4 +1,5 @@
 from abc import abstractmethod
+import re
 import pandas as pd
 import pickle as pickle
 
@@ -194,12 +195,15 @@ class T5BasicPreprocessor(ExtendedPreprocessor):
     def __call__(self, data: pd.DataFrame) -> pd.DataFrame:
 
         new_df = super(T5BasicPreprocessor, self).__call__(data)
+        pattern_t5_special_chars = re.compile("\*\#")
+
 
         t5_inputs = []
         task_description = "klue_re text: "
 
         for i, row in new_df.iterrows():
-            sentence = row['sentence']
+            sentence = row['sentence'].replace("#", "").replace("*", "")
+            # remove subject, object entity token
 
             sbj_from = row['subject_entity_start_idx']
             sbj_to = row['subject_entity_end_idx'] + 1
@@ -207,16 +211,16 @@ class T5BasicPreprocessor(ExtendedPreprocessor):
             obj_to = row['object_entity_end_idx'] + 1
 
             if sbj_from < obj_from:
-                new_sentence = task_description + sentence[:sbj_from] \
+                new_sentence = task_description + sentence[: sbj_from]\
                     + "*" + sentence[sbj_from:sbj_to] + "*" \
                     + sentence[sbj_to:obj_from] \
                     + "#" + sentence[obj_from:obj_to] + "#" \
                     + sentence[obj_to:]
             else:
                 new_sentence = task_description + sentence[:obj_from] \
-                    + "*" + sentence[obj_from:obj_to] + "*" \
+                    + "#" + sentence[obj_from:obj_to] + "#" \
                     + sentence[obj_to:sbj_from] \
-                    + "#" + sentence[sbj_from:sbj_to] + "#" \
+                    + "*" + sentence[sbj_from:sbj_to] + "*" \
                     + sentence[sbj_to:]
 
 
