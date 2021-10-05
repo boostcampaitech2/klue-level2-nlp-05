@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from transformers import T5EncoderModel
+
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 class BaseModel(nn.Module):
@@ -14,11 +15,11 @@ class BaseModel(nn.Module):
 
 
 class MeanPooler(nn.Module):
-    def __init__(self, embedding_dims: int = 1024, dropout_p: float = 0.5):
+    def __init__(self, config):
         super().__init__()
-        self.dense1 = nn.Linear(embedding_dims, embedding_dims)
-        self.dense2 = nn.Linear(embedding_dims, embedding_dims)
-        self.dropout = nn.Dropout(dropout_p)
+        self.dense1 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dense2 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dropout = nn.Dropout(config.dropout_p)
 
     def forward(self, hidden_states, attention_mask, sqrt=True):
         # hidden states: [batch_size, seq, model_dim]
@@ -39,28 +40,16 @@ class MeanPooler(nn.Module):
         return pooled_output
 
 
-class CustomT5EncoderForSequenceClassificationMean(nn.Module):
-    def __init__(self,
-                 num_labels: int = 30,
-                 embedding_dims: int = 1024,
-                 dropout_p: float = 0.5, 
-                 model_name: str = 'KETI-AIR/ke-t5-large',
-                 load_model: str = None):
+class CustomT5EncoderForSequenceClassificationMean(T5EncoderModel):
+    def __init__(self, config):
 
-        super(CustomT5EncoderForSequenceClassificationMean, self).__init__()
-        self.encoder = T5EncoderModel.from_pretrained(model_name)
+        super(CustomT5EncoderForSequenceClassificationMean, self).__init__(config)
 
-        self.num_labels = num_labels
-        if model_name == 'KETI-AIR/ke-t5-large':
-            assert embedding_dims == 1024
-        elif model_name == 'KETI-AIR/ke-t5-base':
-            assert embedding_dims == 768
-        elif model_name == 'KETI-AIR/ke-t5-small':
-            assert embedding_dims == 512
+        self.num_labels = config.num_labels
 
-        self.pooler = MeanPooler(embedding_dims=embedding_dims, dropout_p=dropout_p)
-        self.dropout = nn.Dropout(dropout_p)
-        self.classifier = nn.Linear(embedding_dims, num_labels)
+        self.pooler = MeanPooler(config)
+        self.dropout = nn.Dropout(config.dropout_p)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
     def forward(
         self,
