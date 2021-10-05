@@ -1,0 +1,7 @@
+numpy
+pandas
+fasttext
+gensim
+sklearn
+matplotlib
+seaborn
