@@ -542,14 +542,13 @@ def train(args, verbose: bool=True):
     if valid_dataset is not None:
         valid_dataset.set_tokenizer(tokenizer)
         valid_dataset.set_preprocessor(preprocessor)
-        if augmentation is not None:
-            valid_dataset.set_augmentation(augmentation)
+        # if augmentation is not None:
+        #     valid_dataset.set_augmentation(augmentation)
         valid_dataset.preprocess()
 
-    
-    added_token_num = train_dataset.get_special_token_num()
-    if added_token_num > 0:
-        model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
+    # added_token_num = train_dataset.get_special_token_num()
+    # if added_token_num > 0:
+    #     model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
 
     # TODO: train-valid split
     # TODO: do not split (= train with whole data) if val_ratio == 0.0

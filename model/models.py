@@ -110,7 +110,7 @@ class CustomT5EncoderForSequenceClassificationMean(T5EncoderModel):
     ):
         r"""
         Returns:
-        Example::
+        Example:
             >>> from transformers import T5Tokenizer, T5EncoderModel
             >>> tokenizer = T5Tokenizer.from_pretrained('t5-small')
             >>> model = T5EncoderModel.from_pretrained('t5-small')
