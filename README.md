@@ -12,7 +12,9 @@
 
 * (21:10, Oct 6) `--val_file y`를 설정하면 자동으로 `{data_dir}/train/valid.csv` 파일을 이용해서 validation을 수행합니다. `--val_ratio` 옵션은 자동으로 무시됩니다.
 
-* (21:28, Oct 6) `python aeda_bal_val_split.py` 실행 시, AEDA로 증강된 데이터셋을 train.csv, valid.csv로 나눠서 생성한다.
+* (21:28, Oct 6) `python aeda_bal_val_split.py` 실행 시, 데이터 분포의 균형을 위해 AEDA로 증강된 데이터셋을 train.csv, valid.csv로 나눠서 생성합니다. 이 경우 `--val_file y`를 설정해야 합니다.
+
+* (01:30, Oct 7) `python aeda_val_split.py` 실행 시, AEDA로 증강된 데이터셋을 train.csv, valid.csv로 나눠서 생성합니다. 이 경우 `--val_file y`를 설정해야 합니다.
 
 # Instruction
 
@@ -21,8 +23,8 @@
 모델을 학습하기 전에, 데이터 수 증가를 위해 여러 Data Augmentation기법을 수행합니다.<br>
 Augmentation을 적용한 데이터셋들은 "/opt/ml/dataset" 하위로 생성됩니다.
 
-### AEDA
-
+### AEDA (No Validation)
+이 데이터셋을 사용하기 전에 아래 파이썬 파일을 꼭 실행하세요.
 ```bash
 python aeda_augmentation.py
 ```
@@ -34,8 +36,21 @@ python aeda_augmentation.py
 # --data_dir /opt/ml/dataset/aeda_8_dataset
 ```
 
-### AEDA Balanced
+### AEDA (For Validation)
+이 데이터셋을 사용하기 전에 아래 파이썬 파일을 꼭 실행하세요.
+```bash
+python aeda_val_split.py
+```
+사용 예시
+```bash
+--data_dir /opt/ml/dataset/aeda_1_dataset --val_file y
+# --data_dir /opt/ml/dataset/aeda_2_dataset --val_file y
+# --data_dir /opt/ml/dataset/aeda_4_dataset --val_file y
+# --data_dir /opt/ml/dataset/aeda_8_dataset --val_file y
+```
 
+### AEDA Balanced (No Validation)
+이 데이터셋을 사용하기 전에 아래 파이썬 파일을 꼭 실행하세요.
 ```bash
 python aeda_bal_augmentation.py
 ```
@@ -46,6 +61,7 @@ python aeda_bal_augmentation.py
 ```
 
 ### AEDA Balanced (for Validation)
+이 데이터셋을 사용하기 전에 아래 파이썬 파일을 꼭 실행하세요.
 실행 시, "/opt/ml/dataset/aeda_bal300_dataset" 과 "/opt/ml/dataset/aeda_bal500_dataset" 아래에 train.csv, valid.csv 파일을 각각 생성합니다.
 
 ```bash
@@ -58,13 +74,17 @@ python aeda_bal_val_split.py
 ```
 
 ### Swap
-
+이 데이터셋을 사용하기 전에 아래 파이썬 파일을 꼭 실행하세요.
 ```bash
 python swap_augmentation.py
 ```
 사용 예시:
 ```bash
 --data_dir /opt/ml/dataset/swap_dataset 
+```
+Validation set을 사용하기 위해서는 아래 command line argument를 추가하세요.
+```
+--data_dir /opt/ml/dataset/swap_dataset --val_file n
 ```
 
 ### Load augmented data
