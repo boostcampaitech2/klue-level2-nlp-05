@@ -36,6 +36,11 @@ class BaselineDataset(Dataset):
                 additional_df.append(pd.read_csv(os.path.join(self.data_dir, file_name), encoding='utf-8'))
             self.data = pd.concat(additional_df)
         
+        is_test = kwargs.get('is_test', None)
+        if is_test is not None:
+            self.data = pd.read_csv(os.path.join(
+                self.data_dir, BaselineDataset.test_file_name), encoding='utf-8')
+
         self.tokenizer = None
         self.preprocessor = None
         self.augmentation = None
@@ -82,6 +87,9 @@ class BaselineDataset(Dataset):
         self.data = self.preprocessor(self.data)
     
     def get_special_token_num(self): return 0
+
+    def get_id_column(self):
+        return self.data['id'].tolist()
 
     def save_preprocessed_data(self, save_file_name = "preprocessed_data.csv"):
         self.data.to_csv(os.path.join(self.data_dir, save_file_name))

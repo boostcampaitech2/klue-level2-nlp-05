@@ -15,6 +15,8 @@ def num_to_label(num_label):
 
 
 def label_to_num(origin_label):
+    if origin_label[0] == 100: # test dataset
+        return origin_label
     num_label = []
     with open('/opt/ml/code/dict_label_to_num.pkl', 'rb') as f:
         dict_label_to_num = pickle.load(f)

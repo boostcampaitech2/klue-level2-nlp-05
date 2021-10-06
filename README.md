@@ -119,9 +119,23 @@ python train.py --help
 python train.py
 ```
 
-## How to infer
+## How to inference
 
-### 🚧🚧🚧 Under Construction 🚧🚧🚧
+### command
+
+```bash
+python inference.py
+```
+
+### Arguments
+
+```bash
+--model_dir     # inference에서 사용할 모델이 저장된 경로 (ex. ./saved/exp/exp_final)
+--is_roberta    # 모델의 RoBERTa 여부, token_type_ids 사용 여부 결정 (default: n)
+--tokenizer     # tokenizer 이름 (default: klue/bert-base)
+--dataset       # dataset class (default: BaselineDataset)
+--preprocessor  # preprocessor class (default: BaselinePreprocessor)
+```
 
 ## Features
 
