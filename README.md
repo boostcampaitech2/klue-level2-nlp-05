@@ -21,6 +21,12 @@ Augmentation을 적용한 데이터셋들은 "/opt/ml/dataset" 하위로 생성�
 python aeda_augmentation.py
 ```
 
+### AEDA (for Balanced Dataset)
+
+```bash
+python aeda_bal_augmentation.py
+```
+
 ### Swap
 
 ```bash
