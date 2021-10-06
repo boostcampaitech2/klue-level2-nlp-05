@@ -12,6 +12,8 @@
 
 * (21:10, Oct 6) `--val_file y`를 설정하면 자동으로 `{data_dir}/train/valid.csv` 파일을 이용해서 validation을 수행합니다. `--val_ratio` 옵션은 자동으로 무시됩니다.
 
+* (21:28, Oct 6) `python aeda_bal_val_split.py` 실행 시, AEDA로 증강된 데이터셋을 train.csv, valid.csv로 나눠서 생성한다.
+
 # Instruction
 
 ## Data Augmentation
@@ -32,7 +34,7 @@ python aeda_augmentation.py
 # --data_dir /opt/ml/dataset/aeda_8_dataset
 ```
 
-### AEDA (for Balanced Dataset)
+### AEDA Balanced
 
 ```bash
 python aeda_bal_augmentation.py
@@ -41,6 +43,18 @@ python aeda_bal_augmentation.py
 ```bash
 --data_dir /opt/ml/dataset/aeda_bal300_dataset 
 # --data_dir /opt/ml/dataset/aeda_bal500_dataset 
+```
+
+### AEDA Balanced (for Validation)
+실행 시, "/opt/ml/dataset/aeda_bal300_dataset" 과 "/opt/ml/dataset/aeda_bal500_dataset" 아래에 train.csv, valid.csv 파일을 각각 생성합니다.
+
+```bash
+python aeda_bal_val_split.py
+```
+사용 예시: 
+```bash
+--data_dir /opt/ml/dataset/aeda_bal300_dataset --val_file y
+# --data_dir /opt/ml/dataset/aeda_bal500_dataset  --val_file y
 ```
 
 ### Swap
