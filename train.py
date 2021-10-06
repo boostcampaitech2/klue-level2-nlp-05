@@ -120,6 +120,8 @@ def parse_arguments(parser):
                         default=500, help="evaluation interval for every N steps (default: 500)")
     parser.add_argument('--save_every', type=int, metavar='N',
                         default=500, help="save model interval for every N steps (default: 500)")
+    parser.add_argument('--save_total_limit', type=int, metavar='N',
+                        default=5, help="save total limit (choosing the best eval scores) (default: 5)")
 
     # Learning Rate Scheduler
     group_lr = parser.add_argument_group('lr_scheduler')
@@ -576,6 +578,7 @@ def train(args, verbose: bool=True):
     SAVE_EVERY = args.save_every
     EVAL_EVERY = args.eval_every
     LOG_EVERY = args.log_every
+    SAVE_TOTAL_LIMIT = args.save_total_limit
 
     LEARNING_RATE = args.lr
     LR_TYPE = args.lr_type
@@ -586,7 +589,7 @@ def train(args, verbose: bool=True):
         output_dir=SAVE_DIR,                        # output directory
         logging_dir=LOG_DIR,                        # directory for storing logs
 
-        save_total_limit=5,                         # number of total models saved.
+        save_total_limit=SAVE_TOTAL_LIMIT,          # number of total models saved.
         save_steps=SAVE_EVERY,                      # model saving step.
         logging_steps=LOG_EVERY,                    # log saving step.
         eval_steps=EVAL_EVERY,                      # evaluation step.
