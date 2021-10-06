@@ -195,11 +195,15 @@ class T5BasicPreprocessor(ExtendedPreprocessor):
     def __call__(self, data: pd.DataFrame) -> pd.DataFrame:
 
         new_df = super(T5BasicPreprocessor, self).__call__(data)
-        pattern_t5_special_chars = re.compile("\*\#")
-
 
         t5_inputs = []
+        sbj_s_idx = []
+        sbj_e_idx = []
+        obj_s_idx = []
+        obj_e_idx = []
+
         task_description = "klue_re text: "
+        prefix_length = len(task_description)
 
         for i, row in new_df.iterrows():
             sentence = row['sentence'].replace("#", "").replace("*", "")
@@ -211,11 +215,17 @@ class T5BasicPreprocessor(ExtendedPreprocessor):
             obj_to = row['object_entity_end_idx'] + 1
 
             if sbj_from < obj_from:
-                new_sentence = task_description + sentence[: sbj_from]\
+                new_sentence = task_description + sentence[:sbj_from]\
                     + "*" + sentence[sbj_from:sbj_to] + "*" \
                     + sentence[sbj_to:obj_from] \
                     + "#" + sentence[obj_from:obj_to] + "#" \
                     + sentence[obj_to:]
+
+                sbj_s_idx.append(sbj_from + prefix_length)
+                sbj_e_idx.append(sbj_to   + prefix_length + 2)
+                obj_s_idx.append(obj_from + prefix_length + 2)
+                obj_e_idx.append(obj_to   + prefix_length + 4)
+
             else:
                 new_sentence = task_description + sentence[:obj_from] \
                     + "#" + sentence[obj_from:obj_to] + "#" \
@@ -223,6 +233,11 @@ class T5BasicPreprocessor(ExtendedPreprocessor):
                     + "*" + sentence[sbj_from:sbj_to] + "*" \
                     + sentence[sbj_to:]
 
+                obj_s_idx.append(obj_from + prefix_length)
+                obj_e_idx.append(obj_to   + prefix_length + 2)
+                sbj_s_idx.append(sbj_from + prefix_length + 2)
+                sbj_e_idx.append(sbj_to   + prefix_length + 4)
+                
 
             # input format: "klue re: ~~~*{subject}*~~~#{object}#~~~"
             # refers to: https://github.com/AIRC-KETI/ke-t5
@@ -233,6 +248,11 @@ class T5BasicPreprocessor(ExtendedPreprocessor):
                 print("New:", new_sentence)
 
         new_df['t5_inputs'] = t5_inputs
+        new_df['t5_sbj_s_idx'] = sbj_s_idx
+        new_df['t5_sbj_e_idx'] = sbj_e_idx
+        new_df['t5_obj_s_idx'] = obj_s_idx
+        new_df['t5_obj_e_idx'] = obj_e_idx
+
         # new_df['label'] = label_to_num(new_df['label'].tolist())
 
         return new_df

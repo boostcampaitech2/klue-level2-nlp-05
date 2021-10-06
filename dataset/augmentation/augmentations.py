@@ -18,7 +18,7 @@ class Augmentation:
 
 class SimpleRandomUNK(Augmentation):
 
-    def __init__(self, tokenizer, unk_ratio: float = 0.15):
+    def __init__(self, tokenizer, unk_ratio: float = 0.1):
 
         self.unk_ratio = unk_ratio
         self.unk_token = tokenizer.unk_token
