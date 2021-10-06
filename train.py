@@ -82,6 +82,8 @@ def parse_arguments(parser):
                         help="list of additional dataset file names")
     parser.add_argument('--batch_size', metavar='B', type=int,
                         default=1, help="train set batch size (default: 1)")
+    parser.add_argument('--val_file', type=str, choices=["y", "n"],
+                        default="n", help="whether to use valid.csv file (default: n)")
     parser.add_argument('--val_ratio', type=float, default=0.2,
                         help="valid set ratio (default: 0.2)")
     parser.add_argument('--val_batch_size', metavar='B', type=int,
@@ -122,7 +124,7 @@ def parse_arguments(parser):
     # Learning Rate Scheduler
     group_lr = parser.add_argument_group('lr_scheduler')
     group_lr.add_argument("--lr_type",  type=str, metavar='TYPE',
-                          default="linear", help="lr scheduler type (default: linear)")
+                          default="constant", help="lr scheduler type (default: constant)")
     group_lr.add_argument("--lr_weight_decay", type=float, metavar='LAMBDA',
                           default=0.01, help="weight decay rate for AdamW (default: 0.01)")
     group_lr.add_argument("--lr_gamma", type=float, metavar='GAMMA',
@@ -262,8 +264,6 @@ def bucketed_batch_indices(
 # TODO: collate_fn 현 데이터셋에 맞춰 수정하기!
 # we don't need collate_fn
 # since huggingface automatically creates default collate function
-
-
 def collate_fn(
     batched_samples: List[Tuple[List[int], List[int], List[int]]],
     pad_token_idx
@@ -334,18 +334,14 @@ def get_model_and_tokenizer(args, **kwargs):
 
     elif args.model.lower().count("ke-t5"):
         MODEL_NAME = ""
-        EMBEDDING_DIMS = 0
-        DROPOUT_P = 0.5
+        CLASS_NAME = "T5EncoderForSequenceClassificationMeanSubmeanObjmean"
 
         if args.model.count("large"):
             MODEL_NAME = 'KETI-AIR/ke-t5-large'
-            EMBEDDING_DIMS = 1024
         elif args.model.count("small"):
             MODEL_NAME = 'KETI-AIR/ke-t5-small'
-            EMBEDDING_DIMS = 512
         else:
             MODEL_NAME = 'KETI-AIR/ke-t5-base'
-            EMBEDDING_DIMS = 768
         
         if args.load_model:
             LOAD_MODEL = args.load_model
@@ -354,10 +350,10 @@ def get_model_and_tokenizer(args, **kwargs):
             LOAD_MODEL = MODEL_NAME
             config = AutoConfig.from_pretrained(LOAD_MODEL)
             config.num_labels = 30
-            config.dropout_p = 0.5
+            config.dropout_p = 0.4
+            config.focal_loss = False
 
-        model_module = getattr(import_module(
-            "model.models"), "CustomT5EncoderForSequenceClassificationMean")
+        model_module = getattr(import_module("model.models"), CLASS_NAME)
         model = model_module(config)
 
         try:
@@ -428,7 +424,7 @@ def get_model_and_tokenizer(args, **kwargs):
     return model, tokenizer
 
 
-def train(args, verbose=False):
+def train(args, verbose: bool=True):
     # Create folder
     SAVE_DIR = increment_path(os.path.join(args.model_dir, args.name))
     LOG_DIR = increment_path(os.path.join(args.log_dir, args.name))
@@ -460,19 +456,44 @@ def train(args, verbose=False):
     # max_length sometimes refers to maximum length in text generation
     # so, I used MAX_SEQ_LEN to indicate maximum input length fed to the model
 
-    dataset = dataset_module(
-        data_dir=args.data_dir,
-        max_length=MAX_SEQ_LEN,
-        num_labels=NUM_LABELS,
-        additional=args.additional,
-        dropna=True)
+    if args.val_file == "y":
+        train_dataset = dataset_module(
+            data_dir=args.data_dir,
+            max_length=MAX_SEQ_LEN,
+            num_labels=NUM_LABELS,
+            additional=args.additional,
+            valid=False,
+            dropna=True)
+
+        valid_dataset = dataset_module(
+            data_dir=args.data_dir,
+            max_length=MAX_SEQ_LEN,
+            num_labels=NUM_LABELS,
+            additional=args.additional,
+            valid=True,
+            dropna=True)
+
+        if verbose:
+            print("="*20)
+            print("train-valid split to train:", len(train_dataset), "valid:", len(valid_dataset))
+            print("train:")
+            print(train_dataset.data['label'].value_counts())
+            print("test:")
+            print(valid_dataset.data['label'].value_counts())
+            print("="*20)
+
+    else:
+        dataset = dataset_module(
+            data_dir=args.data_dir,
+            max_length=MAX_SEQ_LEN,
+            num_labels=NUM_LABELS,
+            additional=args.additional,
+            dropna=True)
     # dataset must return
-    # dict of {'input_ids', 'token_type_ids', 'attention_mask', 'labels'}
-    # to work properly
+    # dict containing at least {'input_ids', 'attention_mask', 'labels'}
+    # in order to work properly
 
     # TODO: Build Preprocessor
-    # regex, text cleansing, whatever...
-    # this result will be fixed for entire training steps
     preprocessor = None
     if args.preprocessor:
         try:
@@ -513,67 +534,25 @@ def train(args, verbose=False):
 
     # TODO: train-valid split
     # TODO: do not split (= train with whole data) if val_ratio == 0.0
-    if args.val_ratio > 0.0:
-        train_ids, valid_ids = train_test_split(list(range(len(dataset.data))), test_size=0.2, stratify=dataset.data['label'])
+
+    if args.val_ratio > 0.0 and args.val_file == "n":
+        train_ids, valid_ids = train_test_split(list(range(len(dataset.data))), test_size=args.val_ratio, stratify=dataset.data['label'])
         train_dataset = torch.utils.data.Subset(dataset, train_ids)
         valid_dataset = torch.utils.data.Subset(dataset, valid_ids)
-        print("="*20)
-        print("train-valid split to train:", len(train_dataset), "valid:", len(valid_dataset))
-        print("="*20)
+
+        if verbose:
+            print("="*20)
+            print("train-valid split to train:", len(train_dataset), "valid:", len(valid_dataset))
+            print("train:")
+            print(dataset.data['label'].iloc[train_ids].value_counts())
+            print("test:")
+            print(dataset.data['label'].iloc[valid_ids].value_counts())
+            print("="*20)
 
     # Build DataLoader
     BATCH_SIZE = args.batch_size
     VAL_BATCH_SIZE = args.val_batch_size if args.val_batch_size else BATCH_SIZE
     MAX_PAD_LEN = args.max_pad_len
-
-    # dataloader = torch.utils.data.dataloader.DataLoader(dataset,
-    #                                                     collate_fn=lambda x: collate_fn(
-    #                                                         x, dataset.tokenizer.pad_token_id),
-    #                                                     num_workers=NUM_WORKERS,
-    #                                                     batch_sampler=bucketed_batch_indices(
-    #                                                         dataset.data["sentence"].str.len(
-    #                                                         ),
-    #                                                         batch_size=BATCH_SIZE,
-    #                                                         max_pad_len=MAX_PAD_LEN))
-
-    # Optimizer
-    # LayerNorm should not be decayed...
-    # param_optimizer = list(model.named_parameters())
-    # no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-    # optimizer_grouped_parameters = [
-    #     {'params': [p for n, p in param_optimizer if not any(
-    #         nd in n for nd in no_decay)], 'weight_decay': 0.01},
-    #     {'params': [p for n, p in param_optimizer if any(
-    #         nd in n for nd in no_decay)], 'weight_decay': 0.0}
-    # ]
-
-    LEARNING_RATE = args.lr
-    # optimizer = None
-    # if args.optim == "SGD":
-    #     if args.momentum > 0.0:
-    #         optimizer = optim.SGD(model.parameters(),
-    #                               lr=args.lr,
-    #                               momentum=args.momentum)
-    #     else:
-    #         optimizer = optim.SGD(model.parameters(), lr=args.lr)
-
-    # elif args.optim == "Adam":
-    #     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-
-    # elif args.optim == "AdamW":
-    #     optimizer = AdamW(optimizer_grouped_parameters,
-    #                       lr=args.lr, correct_bias=False)
-
-    # TODO: LR Scheduler
-    # scheduler = None
-    # if args.lr_scheduler == "StepLR":
-    #     scheduler = optim.lr_scheduler.StepLR(optimizer,
-    #                                           args.lr_decay_step,
-    #                                           gamma=args.lr_gamma)
-    # elif args.lr_scheduler == "ReduceLROnPlateau":
-    #     PATIENCE = 3
-    #     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-    #                                                      patience=PATIENCE)
 
     # Train
     NUM_EPOCHS = args.epochs
@@ -581,6 +560,7 @@ def train(args, verbose=False):
     EVAL_EVERY = args.eval_every
     LOG_EVERY = args.log_every
 
+    LEARNING_RATE = args.lr
     LR_TYPE = args.lr_type
     DECAY_RATE = args.lr_weight_decay
     WARMUPS = args.lr_warmups
@@ -589,7 +569,7 @@ def train(args, verbose=False):
         output_dir=SAVE_DIR,                        # output directory
         logging_dir=LOG_DIR,                        # directory for storing logs
 
-        save_total_limit=5,                         # number of total save model.
+        save_total_limit=5,                         # number of total models saved.
         save_steps=SAVE_EVERY,                      # model saving step.
         logging_steps=LOG_EVERY,                    # log saving step.
         eval_steps=EVAL_EVERY,                      # evaluation step.
@@ -606,20 +586,20 @@ def train(args, verbose=False):
         per_device_eval_batch_size=VAL_BATCH_SIZE,  # batch size for evaluation
         
         learning_rate=LEARNING_RATE,                # learning_rate
+        lr_scheduler_type=LR_TYPE,               # linear, cosine, cosine_with_restarts, 
+                                                    # polynomial, constant, constant_with_warmup
         warmup_steps=WARMUPS,                       # number of warmup steps for learning rate scheduler
         weight_decay=DECAY_RATE,                    # strength of weight decay
-        
-        
     )
 
     trainer = None
-    if args.val_ratio > 0.0:
+    if args.val_ratio > 0.0 or args.val_file == "y":
         trainer = Trainer(
             model=model,
             tokenizer=tokenizer,
             args=training_args,                  # training arguments, defined above
-            train_dataset=train_dataset,               # training dataset
-            eval_dataset=valid_dataset,                # evaluation dataset
+            train_dataset=train_dataset,         # training dataset
+            eval_dataset=valid_dataset,          # evaluation dataset
             compute_metrics=compute_metrics      # define metrics function
         )
     else:
@@ -628,7 +608,7 @@ def train(args, verbose=False):
             tokenizer=tokenizer,
             args=training_args,                  # training arguments, defined above
             train_dataset=dataset,               # training dataset
-            eval_dataset=dataset,                # evaluation dataset
+            eval_dataset=dataset,                # evaluate with the whole dataset
             compute_metrics=compute_metrics      # define metrics function
         )
 
@@ -636,50 +616,20 @@ def train(args, verbose=False):
     trainer.train()
     model.save_pretrained(os.path.join(SAVE_DIR, args.name + "_final"))
 
-    # for epoch in range(NUM_EPOCHS):
-
-    #     if verbose:
-    #         print("="*10, "epoch", epoch, "="*10)
-
-    #     # dict of {'input_ids', 'token_type_ids', 'attention_mask'} + label
-    #     for sentences, labels in tqdm(dataloader):
-
-    #         # TODO: input change...
-    #         sentences = sentences.to(device)
-    #         labels    = labels.to(device)
-
-    #         out = model(sentences, labels=labels)
-
-    #         optimizer.zero_grad()
-    #         out.loss.backward()
-    #         optimizer.step()
-
-    #     if ((epoch+1) % LOG_EVERY == 0):
-    #         print(out.loss.item())
-
-    #     if ((epoch+1) % SAVE_EVERY == 0) or (epoch+1 == NUM_EPOCHS):
-    #         # torch.save(model, os.path.join(save_dir, args.name + str(epoch) + '.pkl'))
-    #         model.save_pretrained(os.path.join(
-    #             save_dir, "finetuned_" + args.name + str(epoch+1)))
-
-    # # Logging
-    # with open(os.path.join(save_dir, 'config.json'), 'w', encoding='utf-8') as f:
-    #     json.dump(vars(args), f, ensure_ascii=False, indent=4)
-
 
 def main():
-    v = True
+    
     parser = argparse.ArgumentParser(
         description="Train the model with the arguments given")
     args = parse_arguments(parser)
+
+    v = args.verbose == "y"
 
     if args.seed is not None:
         set_all_seeds(args.seed, verbose=v)
 
     train(args, verbose=v)
 
-
 if __name__ == '__main__':
     main()
-    # train with
-    # python train.py --verbose y --name exp1 --dataset BaselineDataset --preprocessor BaselinePreprocessor --epochs 1 --model klue/bert-base
+    

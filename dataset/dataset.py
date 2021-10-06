@@ -1,5 +1,7 @@
 import os
 from abc import abstractmethod
+from typing import List
+import time
 
 import numpy as np
 import pandas as pd
@@ -18,15 +20,23 @@ class BaselineDataset(Dataset):
     valid_file_name = "train/valid.csv"
     test_file_name  = "test/test_data.csv"
 
-    def __init__(self, data_dir, max_length: int = 256, num_labels: int = 30, **kwargs):
+    def __init__(self, data_dir, max_length: int = 256, num_labels: int = 30, valid: bool = False, test: bool = False, **kwargs):
         super(BaselineDataset, self).__init__()
 
         self.data_dir = data_dir
         self.max_length = max_length
         self.num_labels = num_labels
 
-        self.data = pd.read_csv(os.path.join(
-            self.data_dir, BaselineDataset.train_file_name), encoding='utf-8')
+        self.data = None
+        if not valid and not test:
+            self.data = pd.read_csv(os.path.join(
+                self.data_dir, BaselineDataset.train_file_name), encoding='utf-8')
+        elif valid:
+            self.data = pd.read_csv(os.path.join(
+                self.data_dir, BaselineDataset.valid_file_name), encoding='utf-8')
+        elif test:
+            self.data = pd.read_csv(os.path.join(
+                self.data_dir, BaselineDataset.test_file_name), encoding='utf-8')
 
         additionals = kwargs.get("additional", None)
         if additionals is not None:
@@ -86,7 +96,9 @@ class BaselineDataset(Dataset):
     def preprocess(self):
         self.data = self.preprocessor(self.data)
     
-    def get_special_token_num(self): return 0
+    def get_special_token_num(self) -> int: return 0
+
+    def get_num_unique_ids(self) -> List[int]: return list(set(self.data['id']))
 
     def get_id_column(self):
         return self.data['id'].tolist()
@@ -103,7 +115,7 @@ class BaselineDataset(Dataset):
     def set_augmentation(self, augmentation: Augmentation):
         self.augmentation = augmentation
 
-    def save_data(self, save_file: str):\
+    def save_data(self, save_file: str):
         self.data.to_csv(save_file)
 
     @staticmethod
@@ -117,7 +129,6 @@ class BaselineDataset(Dataset):
     @staticmethod
     def set_test_file(file_name):
         BaselineDataset.test_file_name = file_name
-
 
 # class ExtendedDataset(BaselineDataset):
 class EntitySpecialTokenDataset(BaselineDataset):
@@ -167,19 +178,14 @@ class T5Dataset(BaselineDataset):
             raise AttributeError(
                 "please first set tokenizer with self.set_tokenizer() method")
 
-        sentence = self.data['sentence'].iloc[index]
+        if not hasattr(self.data, 't5_sbj_ts_idx'):
+            self.data['t5_sbj_ts_idx'] = -1
+            self.data['t5_sbj_te_idx'] = -1
+            self.data['t5_obj_ts_idx'] = -1
+            self.data['t5_obj_te_idx'] = -1
+
+        sentence = self.data['t5_inputs'].iloc[index]
         label    = self.data['label'].iloc[index]
-
-        if self.augmentation is not None:
-            sentence = self.augmentation(sentence)
-            # augmentation processes directly on the string input
-
-        # # tokenizer.tokenize() -> List[str]
-        # sentence_tokens = self.tokenizer.tokenize(sentence)
-        # entity_tokens   = self.tokenizer.tokenize(concat_entity)
-
-        # sentence_ids = self.tokenizer.convert_tokens_to_ids(sentence_tokens)
-        # entity_ids   = self.tokenizer.convert_tokens_to_ids(entity_tokens)
 
         tokenized_sentence = self.tokenizer(
             sentence,
@@ -190,8 +196,73 @@ class T5Dataset(BaselineDataset):
             add_special_tokens=True,
         )
 
+        t5_sbj_ts_idx = self.data['t5_sbj_ts_idx'].iloc[index]
+        t5_sbj_te_idx = self.data['t5_sbj_te_idx'].iloc[index]
+        t5_obj_ts_idx = self.data['t5_obj_ts_idx'].iloc[index]
+        t5_obj_te_idx = self.data['t5_obj_te_idx'].iloc[index]
+
+        if t5_sbj_ts_idx == -1:
+            # hasn't been calculated yet...
+
+            t5_sbj_s_idx = self.data['t5_sbj_s_idx'].iloc[index]
+            t5_sbj_e_idx = self.data['t5_sbj_e_idx'].iloc[index]
+            t5_obj_s_idx = self.data['t5_obj_s_idx'].iloc[index]
+            t5_obj_e_idx = self.data['t5_obj_e_idx'].iloc[index]
+
+            temp = self.tokenizer(
+                sentence[:t5_sbj_s_idx],
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.max_length,
+                add_special_tokens=True,
+            )
+            t5_sbj_ts_idx = temp['input_ids'].size(1)
+
+            temp = self.tokenizer(
+                sentence[:t5_sbj_e_idx],
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.max_length,
+                add_special_tokens=True,
+            )
+            t5_sbj_te_idx = temp['input_ids'].size(1)
+
+            temp = self.tokenizer(
+                sentence[:t5_obj_s_idx],
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.max_length,
+                add_special_tokens=True,
+            )
+            t5_obj_ts_idx = temp['input_ids'].size(1)
+
+            temp = self.tokenizer(
+                sentence[:t5_obj_e_idx],
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.max_length,
+                add_special_tokens=True,
+            )
+            t5_obj_te_idx = temp['input_ids'].size(1)
+
+            self.data.loc[self.data.index[index], 't5_sbj_ts_idx'] = t5_sbj_ts_idx
+            self.data.loc[self.data.index[index], 't5_sbj_te_idx'] = t5_sbj_te_idx
+            self.data.loc[self.data.index[index], 't5_obj_ts_idx'] = t5_obj_ts_idx
+            self.data.loc[self.data.index[index], 't5_obj_te_idx'] = t5_obj_te_idx
+            # it looks weird 
+            # since self.data['column'].iloc[idx] == self.__getitem__('column').__setitem__(idx, item)
+            # therefore it is problematic when assigning with double indexing
+
+            # print("Generate index:")
+            # print(t5_sbj_ts_idx, t5_sbj_te_idx, t5_obj_ts_idx, t5_obj_te_idx)
+
         out = {key: value[0] for key, value in tokenized_sentence.items()}
         out['labels'] = torch.tensor(label)
+        out['entity_token_idx'] = torch.tensor([[t5_sbj_ts_idx, t5_sbj_te_idx], [t5_obj_ts_idx, t5_obj_te_idx]])
 
-        # dict of {'input_ids', 'attention_mask', 'labels'}
+        # dict of {'input_ids', 'attention_mask', 'labels', 'entity_token_idx'}
         return out

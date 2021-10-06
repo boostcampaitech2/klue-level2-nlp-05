@@ -8,6 +8,8 @@
 
 * (18:23, Oct 5) `--save_every 2000 --log_every 2000 --eval_every 2000` 정도로 설정해주셔도 충분히 evaluation 가능하니 훈련 속도 빠르게 하기 위해서는 이 방법 시도해보세요~
 
+* (0:55, Oct 6) train, valid set 나눌 때 `--verbose y`로 설정하면, 각 set에 포함된 라벨별 데이터 수를 출력해줍니다. 참고하세요~
+
 # Instruction
 
 ## Data Augmentation
