@@ -158,7 +158,7 @@ class RandomReplaceWords(Augmentation):
         cnt = 0
         trials = 0
 
-        while cnt < num_changes or trials < 10:
+        while cnt < num_changes and trials < 10:
 
             length = 0
             trials += 1
