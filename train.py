@@ -456,6 +456,8 @@ def train(args, verbose: bool=True):
     # max_length sometimes refers to maximum length in text generation
     # so, I used MAX_SEQ_LEN to indicate maximum input length fed to the model
 
+    dataset, train_dataset, valid_dataset = None, None, None
+
     if args.val_file == "y":
         train_dataset = dataset_module(
             data_dir=args.data_dir,
@@ -519,23 +521,38 @@ def train(args, verbose: bool=True):
 
         augmentation = augmentation_module(tokenizer)
 
-    # TODO: set_preprocessor and set_augmentation
-    if preprocessor is not None:
+    
+    if dataset is not None:
+        dataset.set_tokenizer(tokenizer)
         dataset.set_preprocessor(preprocessor)
-    if augmentation is not None:
-        dataset.set_augmentation(augmentation)
-    dataset.set_tokenizer(tokenizer)
+        if augmentation is not None:
+            dataset.set_augmentation(augmentation)
+        dataset.preprocess()
 
-    # now runs preprocessing steps
-    dataset.preprocess()
-    added_token_num = dataset.get_special_token_num()
+    if train_dataset is not None:
+        train_dataset.set_tokenizer(tokenizer)
+        train_dataset.set_preprocessor(preprocessor)
+        if augmentation is not None:
+            train_dataset.set_augmentation(augmentation)
+        train_dataset.preprocess()
+            
+
+    if valid_dataset is not None:
+        valid_dataset.set_tokenizer(tokenizer)
+        valid_dataset.set_preprocessor(preprocessor)
+        if augmentation is not None:
+            valid_dataset.set_augmentation(augmentation)
+        valid_dataset.preprocess()
+
+    
+    added_token_num = train_dataset.get_special_token_num()
     if added_token_num > 0:
         model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
 
     # TODO: train-valid split
     # TODO: do not split (= train with whole data) if val_ratio == 0.0
 
-    if args.val_ratio > 0.0 and args.val_file == "n":
+    if args.val_ratio > 0.0 and dataset is not None:
         train_ids, valid_ids = train_test_split(list(range(len(dataset.data))), test_size=args.val_ratio, stratify=dataset.data['label'])
         train_dataset = torch.utils.data.Subset(dataset, train_ids)
         valid_dataset = torch.utils.data.Subset(dataset, valid_ids)
@@ -593,7 +610,7 @@ def train(args, verbose: bool=True):
     )
 
     trainer = None
-    if args.val_ratio > 0.0 or args.val_file == "y":
+    if valid_dataset is not None:
         trainer = Trainer(
             model=model,
             tokenizer=tokenizer,
@@ -632,4 +649,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
