@@ -20,17 +20,33 @@ Augmentation을 적용한 데이터셋들은 "/opt/ml/dataset" 하위로 생성�
 ```bash
 python aeda_augmentation.py
 ```
+해당 데이터셋 사용할 때 추가할 command line arguments 예시
+```bash
+--dataset /opt/ml/dataset/aeda_1_dataset
+# --dataset /opt/ml/dataset/aeda_2_dataset
+# --dataset /opt/ml/dataset/aeda_4_dataset
+# --dataset /opt/ml/dataset/aeda_8_dataset
+```
 
 ### AEDA (for Balanced Dataset)
 
 ```bash
 python aeda_bal_augmentation.py
 ```
+사용 예시: 
+```bash
+--dataset /opt/ml/dataset/aeda_bal300_dataset 
+# --dataset /opt/ml/dataset/aeda_bal500_dataset 
+```
 
 ### Swap
 
 ```bash
 python swap_augmentation.py
+```
+사용 예시:
+```bash
+--dataset /opt/ml/dataset/swap_dataset 
 ```
 
 ### Load augmented data
