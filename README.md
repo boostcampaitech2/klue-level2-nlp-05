@@ -10,6 +10,8 @@
 
 * (0:55, Oct 6) train, valid set 나눌 때 `--verbose y`로 설정하면, 각 set에 포함된 라벨별 데이터 수를 출력해줍니다. 참고하세요~
 
+* (21:10, Oct 6) `--val_file y`를 설정하면 자동으로 `{data_dir}/train/valid.csv` 파일을 이용해서 validation을 수행합니다. `--val_ratio` 옵션은 자동으로 무시됩니다.
+
 # Instruction
 
 ## Data Augmentation
@@ -257,6 +259,8 @@ python inference.py
 
 ## Model Setting
 
+If saved model directory is given to `--load_model`, then it will load the pretrained weights.
+
 ```bash
 --name {save_name}           # please set the model name
 --model {model_type}         # model type (e.g., klue/bert-base)
@@ -270,8 +274,10 @@ python inference.py
 --dataset {dataset}            # dataset class name (default: BaselineDataset)
 --additional {file1 file2 ...} # list of additional dataset file names (will be concated)
 --batch_size {B}               # batch size (default: 1)
+--val_file {y or n}            # if y, read train/valid.csv and create valid_dataset (default: n)
 --val_ratio {val_ratio}        # stratified train-valid split ratio (default: 0.2)
-                               # if val_ratio == 0, then evaluate with the whole training data
+                               # if val_ratio == 0 and val_file == n, 
+                               # then evaluate with the whole training data
 --val_batch_size {batch_size}  # default set to batch_size
 ```
 
@@ -285,10 +291,14 @@ python inference.py
 ## Training Setup
 
 ```bash
---epochs {N}         # number of epochs (default: 1)
---lr {LEARNING_RATE} # learning rate (default: 1e-5)
---max_seq_len {L}    # max sequence length (default: 256)
---max_pad_len {L}    # max padding length (default: 8)
+--epochs {N}          # number of epochs (default: 1)
+--lr {LEARNING_RATE}  # learning rate (default: 1e-5)
+--lr_type {TYPE}      # lr scheduler type (default: constant)
+                      # other options: linear
+--lr_weight_decay {R} # lr weight decay rate for AdamW (default: 0.01)
+--max_seq_len {L}     # max sequence length (default: 256)
+--max_pad_len {L}     # max padding length for bucketing (default: 8)
+                      # ignored in this setting
 ```
 
 ## Trainer Setup
@@ -300,8 +310,6 @@ python inference.py
 ```
 
 ## Additional Setting
-
-If saved model directory is given to `--load_model`, then it will load the pretrained weights.
 
 ```bash
 --seed {seed_value}  # default: None
