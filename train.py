@@ -523,6 +523,7 @@ def train(args, verbose: bool=True):
 
         augmentation = augmentation_module(tokenizer)
 
+    added_token_num = 0
     
     if dataset is not None:
         dataset.set_tokenizer(tokenizer)
@@ -530,6 +531,8 @@ def train(args, verbose: bool=True):
         if augmentation is not None:
             dataset.set_augmentation(augmentation)
         dataset.preprocess()
+        added_token_num = dataset.get_special_token_num()
+        
 
     if train_dataset is not None:
         train_dataset.set_tokenizer(tokenizer)
@@ -537,6 +540,8 @@ def train(args, verbose: bool=True):
         if augmentation is not None:
             train_dataset.set_augmentation(augmentation)
         train_dataset.preprocess()
+        added_token_num = train_dataset.get_special_token_num()
+        
             
 
     if valid_dataset is not None:
@@ -545,9 +550,8 @@ def train(args, verbose: bool=True):
         if augmentation is not None:
             valid_dataset.set_augmentation(augmentation)
         valid_dataset.preprocess()
+        added_token_num = valid_dataset.get_special_token_num()
 
-    
-    added_token_num = train_dataset.get_special_token_num()
     if added_token_num > 0:
         model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
 
