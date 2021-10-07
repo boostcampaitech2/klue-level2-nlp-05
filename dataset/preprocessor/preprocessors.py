@@ -26,6 +26,40 @@ def label_to_num(origin_label):
     return num_label
 
 
+def cleansing(text: str): 
+    # reference: https://cording-artist.tistory.com/139
+    
+    # e-mail 주소 제거 
+    pattern = '(\[a-zA-Z0-9\_.+-\]+@\[a-zA-Z0-9-\]+.\[a-zA-Z0-9-.\]+)' 
+    text = re.sub(pattern=pattern,repl=' ',string=text) 
+    
+    # url 제거 
+    pattern = '(http|ftp|https)://(?:[-\w.]|(?:\da-fA-F]{2}))+' 
+    text = re.sub(pattern=pattern,repl=' ',string=text)
+    
+    # 한글 자음, 모음 제거 
+    pattern = '([ㄱ-ㅎㅏ-ㅣ])+' 
+    text = re.sub(pattern=pattern,repl=' ',string=text) 
+    
+    # html tag 제거 
+    pattern = '<[^>]*>' 
+    text = re.sub(pattern=pattern,repl=' ',string=text) 
+    
+    # \r, \n 제거 
+    pattern = '[\r|\n]' 
+    text = re.sub(pattern=pattern,repl=' ',string=text) 
+    
+    # 특수기호 제거 
+    pattern = '[^\w\s]'
+    text = re.sub(pattern=pattern,repl=' ',string=text)
+    
+    # 이중 space 제거 
+    pattern = re.compile(r'\s+') 
+    text = re.sub(pattern=pattern,repl=' ',string=text) 
+    
+    return text
+
+
 class Preprocessor:
 
     @abstractmethod

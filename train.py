@@ -547,8 +547,8 @@ def train(args, verbose: bool=True):
     if valid_dataset is not None:
         valid_dataset.set_tokenizer(tokenizer)
         valid_dataset.set_preprocessor(preprocessor)
-        if augmentation is not None:
-            valid_dataset.set_augmentation(augmentation)
+        # if augmentation is not None:
+        #     valid_dataset.set_augmentation(augmentation)
         valid_dataset.preprocess()
         added_token_num = valid_dataset.get_special_token_num()
 
