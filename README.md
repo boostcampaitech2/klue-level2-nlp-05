@@ -16,6 +16,12 @@
 
 * (01:30, Oct 7) `python aeda_val_split.py` 실행 시, AEDA로 증강된 데이터셋을 train.csv, valid.csv로 나눠서 생성합니다. 이 경우 `--val_file y`를 설정해야 합니다.
 
+* (09:21, Oct 7) 두 개의 augmentation 기법들이 추가되었습니다.
+
+  * `dataset.augmentation.augmentations` 내에 `RandomReplcaeWords`를 만들었습니다. fastText와 konlpy의 Okt를 기본으로 하여 임의로 단어를 유사한 단어로 바꿉니다. 다만 시간이 상당히 오래 걸리기 때문에 훈련에서 적용은 힘들 것 같습니다. 다만, 추후 사전에 훈련 데이터를 변경시키는 방법으로 가능할 것 같습니다. 그리고 jdk, gcc 등 설치해야 하는 component가 많아서 실제로 사용하기는 매우 까다롭습니다.
+
+  * `dataset.augmentation.augmentations` 내에 `RandomFlip`을 만들었습니다. 기본값은 `0.2`의 확률로 문장을 잘라 뒤집습니다. 다만, 한 단어가 잘리는 것을 막기 위해서 문장 길이의 20~80% 지점 중 임의의 지점에서 자르게 됩니다. 한국어는 그 의미를 파악하는데 어순에 크게 상관 없어야 한다는 점을 기반으로 했으며, 비교적 빠르게 동작합니다.
+
 # Instruction
 
 ## Data Augmentation
@@ -193,9 +199,9 @@ python inference.py
 
 - [X] 다양한 모델(T5 등)의 input에 적합한 `Preprocessor` 클래스 개발
 - [X] EDA 논문에 나온 Augmentation 구현
-- [ ] Word2Vec 혹은 FastText 기반의 유의어 사전 구축 및 Augmentation 구현
+- [X] Word2Vec 혹은 FastText 기반의 유의어 사전 구축 및 Augmentation 구현
 - [X] train-valid split 구현 (stratified)
-- [ ] huggingface `Trainer`에 다양한 optimizer 옵션 추가 (예를 들어, `--optim` 옵션은 정상으로 작동하지 않습니다.)
+- [X] huggingface `Trainer`에 다양한 optimizer 옵션 추가 (예를 들어, `--optim` 옵션은 정상으로 작동하지 않습니다.)
 
 # Structure
 
