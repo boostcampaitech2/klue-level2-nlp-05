@@ -216,19 +216,23 @@ class RandomFlip(Augmentation):
 
     def __call__(self, input_text: str) -> str:
 
+        PROB = 0.2
         word_list = input_text.split()
-        flip_point = random.randint(int(len(word_list)*0.2), int(len(word_list)*0.8))
 
-        prev_last_word = word_list[-1]
-        prev_last_word = prev_last_word[:-1] + ","
-        # remove last punctuation and add ","
-        word_list[-1] = prev_last_word
+        if random.random() < PROB:
+        
+            flip_point = random.randint(int(len(word_list)*0.2), int(len(word_list)*0.8))
 
-        new_last_word = word_list[flip_point]
-        new_last_word = new_last_word + "."
-        word_list[flip_point] = new_last_word
+            prev_last_word = word_list[-1]
+            prev_last_word = prev_last_word[:-1] + ","
+            # remove last punctuation and add ","
+            word_list[-1] = prev_last_word
 
-        word_list = word_list[flip_point+1:] + word_list[0:flip_point+1]
+            new_last_word = word_list[flip_point]
+            new_last_word = new_last_word + "."
+            word_list[flip_point] = new_last_word
+
+            word_list = word_list[flip_point+1:] + word_list[0:flip_point+1]
 
         return " ".join(word_list)
 
