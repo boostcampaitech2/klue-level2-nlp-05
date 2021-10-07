@@ -14,7 +14,8 @@ class Augmentation:
 
     @abstractmethod
     def __init__(self, tokenizer):
-        self.unk_token = tokenizer.unk_token
+        if tokenizer is not None:
+            self.unk_token = tokenizer.unk_token
         pass
 
     @abstractmethod
@@ -201,8 +202,34 @@ class RandomReplaceWords(Augmentation):
         return sentence
 
     def __call__(self, input_text: str):
-        RATIO = 0.1
+        RATIO = 0.2
         if random.random() < RATIO:
             return self.change_random_word(input_text)
         else:
             return input_text
+
+
+class RandomFlip(Augmentation):
+
+    def __init__(self, tokenizer, **kwargs):
+        super().__init__(tokenizer)
+
+    def __call__(self, input_text: str) -> str:
+
+        word_list = input_text.split()
+        flip_point = random.randint(int(len(word_list)*0.2), int(len(word_list)*0.8))
+
+        prev_last_word = word_list[-1]
+        prev_last_word = prev_last_word[:-1] + ","
+        # remove last punctuation and add ","
+        word_list[-1] = prev_last_word
+
+        new_last_word = word_list[flip_point]
+        new_last_word = new_last_word + "."
+        word_list[flip_point] = new_last_word
+
+        word_list = word_list[flip_point+1:] + word_list[0:flip_point+1]
+
+        return " ".join(word_list)
+
+    
