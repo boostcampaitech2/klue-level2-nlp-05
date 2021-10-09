@@ -130,7 +130,6 @@ class BaselineDataset(Dataset):
     def set_test_file(file_name):
         BaselineDataset.test_file_name = file_name
 
-# class ExtendedDataset(BaselineDataset):
 class EntitySpecialTokenDataset(BaselineDataset):
 
     def __getitem__(self, index):
@@ -144,7 +143,6 @@ class EntitySpecialTokenDataset(BaselineDataset):
         if self.augmentation is not None:
             sentence = self.augmentation(sentence)
             
-        # add special tokens 
         self.tokenizer.add_special_tokens({'additional_special_tokens': self.special_tokens})
 
         tokenized_sentence = self.tokenizer(
@@ -159,9 +157,7 @@ class EntitySpecialTokenDataset(BaselineDataset):
 
         out = {key: value[0] for key, value in tokenized_sentence.items()}
         out['label'] = torch.tensor(self.data['label'].iloc[index])
-        #out['entity_ids'] = [0,1,0,0,1,0]
-        #out['input_embeds'] = 
-        # dict of {'input_ids', 'token_type_ids', 'attention_mask', 'labels'}
+    
         return out
 
     def preprocess(self):
