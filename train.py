@@ -133,8 +133,12 @@ def parse_arguments(parser):
                           default=0.95, help="lr scheduler gamma (default: 0.95)")
     group_lr.add_argument("--lr_decay_step", type=int, metavar='STEP',
                           default=100, help="lr scheduler decay step (default: 100)")
-    group_lr.add_argument("--lr_warmups", type=int, metavar='N',
+    group_lr.add_argument("--lr_warmup_steps", type=int, metavar='N',
                           default=500, help="lr scheduler warmup steps (default: 500)")
+    group_lr.add_argument("--lr_warmup_ratio", type=float, metavar='N',
+                          default=0.1, help="lr scheduler warmup ratio (default: 0.1)")
+    group_lr.add_argument("--lr_adamw_beta2", type=float, metavar='BETA2',
+                          default=0.99, help="AdamW BETA2 (default: 0.99)")    
 
     args = parser.parse_args()
 
@@ -587,7 +591,9 @@ def train(args, verbose: bool=True):
     LEARNING_RATE = args.lr
     LR_TYPE = args.lr_type
     DECAY_RATE = args.lr_weight_decay
-    WARMUPS = args.lr_warmups
+    WARMUP_RATIO = args.lr_warmup_ratio
+    WARMUP_STEPS = args.lr_warmup_steps
+    ADAM_BETA2 = args.lr_adamw_beta2
 
     training_args = TrainingArguments(
         output_dir=SAVE_DIR,                        # output directory
@@ -612,7 +618,9 @@ def train(args, verbose: bool=True):
         learning_rate=LEARNING_RATE,                # learning_rate
         lr_scheduler_type=LR_TYPE,               # linear, cosine, cosine_with_restarts, 
                                                     # polynomial, constant, constant_with_warmup
-        warmup_steps=WARMUPS,                       # number of warmup steps for learning rate scheduler
+        adam_beta2=ADAM_BETA2,                      # Beta 2 hyperparameter for AdamW
+        warmup_ratio=WARMUP_RATIO,                  # ratio of warmup steps for learning rate scheduler                                            
+        warmup_steps=WARMUP_STEPS,                  # number of warmup steps for learning rate scheduler (overrides warmup_ratio)
         weight_decay=DECAY_RATE,                    # strength of weight decay
     )
 
