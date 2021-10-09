@@ -1,9 +1,7 @@
 import os
-import random
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-import re
 from sklearn.model_selection import train_test_split
 
 
@@ -13,52 +11,36 @@ PUNC_RATIO = 0.3
 HASH_VALUE_SUB = '@#$%@@#$%#'
 HASH_VALUE_OBJ = '&$^&#$%^#@'
 NUM_AUGS = [1, 2, 4]
-PATH = "/opt/ml/dataset/train/train.csv"
+TRAIN_PATH = "/opt/ml/dataset/train/train.csv"
+DATASET_PATH = "/opt/ml/dataset"
 
-# entity HSASH_VALUE로 바꾸기, [start_idx:end_idx+1]까지의 글자를 바꿈
-def encode_words(sentence:str, start_s, end_s, start_o, end_o) -> str:
+
+def encode_words(sentence, start_s, end_s, start_o, end_o):
+    '''
+    entity를 HASH_VALUE로 대체, [start_idx:end_idx+1]까지의 글자를 바꿈
+    '''
     if start_s > start_o:
         sentence = sentence[:start_s] + HASH_VALUE_SUB + sentence[end_s+1:]
         sentence = sentence[:start_o] + HASH_VALUE_OBJ + sentence[end_o+1:]
     else :
         sentence = sentence[:start_o] + HASH_VALUE_OBJ + sentence[end_o+1:]
         sentence = sentence[:start_s] + HASH_VALUE_SUB + sentence[end_s+1:]    
+    
     return sentence
 
 
-def change_index(sentence, word_s, word_o, len_s, len_o, type_s, type_o):
-    '''
-    증강된 문장의 개체 index를 재설정
-    '''
-    sub_index = []
-    obj_index = []
-    sub_index.append(str(sentence.find(HASH_VALUE_SUB)))
-    sub_index.append(str(sentence.find(HASH_VALUE_SUB)+len_s-1))
-    sentence = sentence.replace(HASH_VALUE_SUB,word_s, 1)
-    
-    obj_index.append(str(sentence.find(HASH_VALUE_OBJ)))
-    obj_index.append(str(sentence.find(HASH_VALUE_OBJ)+len_o-1))
-    sentence = sentence.replace(HASH_VALUE_OBJ,word_o, 1)
-    
-    entity_sub = "{'word': '"+word_s+"', 'start_idx': "+sub_index[0]+", 'end_idx': "+sub_index[1]+", 'type': '"+type_s+"'}"
-    entity_obj = "{'word': '"+word_o+"', 'start_idx': "+obj_index[0]+", 'end_idx': "+obj_index[1]+", 'type': '"+type_o+"'}"
-
-    return sentence, entity_sub, entity_obj
-
-
-
-def insert_punctuation(sentence:str, punc_ratio=PUNC_RATIO):
+def insert_punctuation(sentence, punc_ratio=PUNC_RATIO):
     '''
     ratio만큼 PUNCTATIONS를 sentence에 랜덤으로 추가
     '''
     words = sentence.split(' ')
     new_line = []
-    q = random.randint(1, int(punc_ratio * len(words) + 1)) 
-    qs = random.sample(range(0, len(words)), q)
+    q = np.random.randint(1, int(punc_ratio * len(words) + 1)) 
+    qs = np.random.choice(range(0, len(words)), q)
     
     for j, word in enumerate(words):
         if j in qs:
-            new_line.append(PUNCTUATIONS[random.randint(0, len(PUNCTUATIONS)-1)])
+            new_line.append(PUNCTUATIONS[np.random.randint(0, len(PUNCTUATIONS) - 1)])
             new_line.append(word)
         else:
             new_line.append(word)
@@ -67,22 +49,38 @@ def insert_punctuation(sentence:str, punc_ratio=PUNC_RATIO):
     return new_line
 
 
-def insert_punc_and_change_index(data_row, punc_ratio=PUNC_RATIO):
+def change_index(sentence, word_s, word_o, len_s, len_o, type_s, type_o):
+    '''
+    증강된 문장의 개체 index를 재설정
+    '''
+    sub_index = []
+    obj_index = []
+
+    sub_index.append(str(sentence.find(HASH_VALUE_SUB)))
+    sub_index.append(str(sentence.find(HASH_VALUE_SUB) + len_s - 1))
+    sentence = sentence.replace(HASH_VALUE_SUB, word_s, 1)
+    
+    obj_index.append(str(sentence.find(HASH_VALUE_OBJ)))
+    obj_index.append(str(sentence.find(HASH_VALUE_OBJ) + len_o - 1))
+    sentence = sentence.replace(HASH_VALUE_OBJ, word_o, 1)
+    
+    entity_sub = "{'word': '" + word_s + "', 'start_idx': " + sub_index[0] + ", 'end_idx': " + sub_index[1] + ", 'type': '" + type_s + "'}"
+    entity_obj = "{'word': '" + word_o + "', 'start_idx': " + obj_index[0] + ", 'end_idx': " + obj_index[1] + ", 'type': '" + type_o + "'}"
+
+    return sentence, entity_sub, entity_obj
+    
+
+def insert_punc_and_change_index(data_row):
     '''
     encode_words, insert_punctuation, change_index, merge to pd.Series
     '''
-    # parse word, idx, len, type
     word_s, start_s, end_s, type_s = list(eval(data_row["subject_entity"]).values())
     word_o, start_o, end_o, type_o = list(eval(data_row["object_entity"]).values())
-
     len_s = len(word_s)
     len_o = len(word_o)
-    
-    # input 원래 sentence -> output entity가 encode된 sentence
+
     encoded_sentence = encode_words(data_row['sentence'], start_s, end_s, start_o, end_o) 
-    
     new_sentence = insert_punctuation(encoded_sentence) 
-    
     new_sentence, entity_sub, entity_obj = change_index(new_sentence, word_s, word_o, len_s, len_o, type_s, type_o)  
     
     data_row['sentence'] = new_sentence
@@ -92,12 +90,13 @@ def insert_punc_and_change_index(data_row, punc_ratio=PUNC_RATIO):
     return data_row
 
 
-def main(data_train:pd.DataFrame, data_val:pd.DataFrame, aug):
+def main(data_train, data_val, aug):
     '''
-    AEDA 데이터 증강을 위한 순서를 담은 함수
+    주어진 dataframe에 AEDA 데이터 증강을 적용하기 위한 함수
     '''
     aug_train = pd.DataFrame()
     aug_val = pd.DataFrame()
+
     for _ in range(aug):
         train_new = data_train.apply(lambda x: insert_punc_and_change_index(x), axis=1) 
         val_new = data_val.apply(lambda x: insert_punc_and_change_index(x), axis=1)  
@@ -111,32 +110,24 @@ def main(data_train:pd.DataFrame, data_val:pd.DataFrame, aug):
     return aug_train, aug_val
 
 
-def iterate_main(path:str):
+def iterate_main(path):
     '''
     split train, val set and duplicate if needed
     '''
     orig_df = pd.read_csv(path)
-    # label_num_list = [(i, min_num // j) for i, j in zip(df["label"].value_counts().index, df["label"].value_counts())]
-    # print(label_num_list)
 
-
-    for aug in tqdm(NUM_AUGS): # NUM_AUGS 2 4개
-        
-
+    for aug in tqdm(NUM_AUGS):
         df_train, df_val = train_test_split(orig_df, test_size=0.2, random_state=42, stratify=orig_df["label"])
-        
-        # final_df_train = df_train
-        # final_df_val = df_val
-        
-        new_df_train, new_df_val = main(df_train, df_val, aug) # A -> A'
-        final_df_train = pd.concat([df_train, new_df_train], axis=0)  # A + 2A'
+        new_df_train, new_df_val = main(df_train, df_val, aug)
+        final_df_train = pd.concat([df_train, new_df_train], axis=0)
         final_df_val = pd.concat([df_val, new_df_val], axis=0)
 
-        os.makedirs(f"/opt/ml/dataset/aeda_{aug}_dataset", exist_ok=True)
-        os.makedirs(f"/opt/ml/dataset/aeda_{aug}_dataset/train", exist_ok=True)
+        os.makedirs(f"{DATASET_PATH}/aeda_{aug}_dataset", exist_ok=True)
+        os.makedirs(f"{DATASET_PATH}/aeda_{aug}_dataset/train", exist_ok=True)
     
-        final_df_train.to_csv(f"/opt/ml/dataset/aeda_{aug}_dataset/train/train.csv", header=True, index=False)
-        final_df_val.to_csv(f"/opt/ml/dataset/aeda_{aug}_dataset/train/valid.csv", header=True, index=False)
+        final_df_train.to_csv(f"{DATASET_PATH}/aeda_{aug}_dataset/train/train.csv", header=True, index=False)
+        final_df_val.to_csv(f"{DATASET_PATH}/aeda_{aug}_dataset/train/valid.csv", header=True, index=False)
 
 
-iterate_main(PATH)
+if __name__ == "__main__":
+    iterate_main(TRAIN_PATH)
